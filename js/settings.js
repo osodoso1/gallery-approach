@@ -188,14 +188,13 @@
 
   function weather(m) {
     const E = SS.env2;
-    m.append(h('h2', null, 'Weather & air'), h('p', { class: 'lead' }, 'Temperature, UV index, air quality and pollen. It sits under the clock as a drop-down (tap to open or close), and in the side panel\'s Weather tab.'),
+    m.append(h('h2', null, 'Weather & air'), h('p', { class: 'lead' }, 'Temperature, UV index, air quality and a sneeze outlook. It sits under the clock as a drop-down (tap to open or close), and in the side panel\'s Weather tab.'),
       row('Show weather', null, toggle('env.enabled', () => E.refresh())),
       row('Under the clock', 'Collapsed shows a one-line summary you can tap to drop down', seg('env.show', [['off', 'Hide'], ['compact', 'Collapsed'], ['open', 'Expanded']])),
-      h('div', { class: 'fx-group' }, 'Location'), E.locationControls(),
       row('Units', null, seg('env.units', [['F', '°F · mph'], ['C', '°C · km/h']], () => E.refresh())),
       row('Weather, UV & air quality', E.status.wx === 'ok' ? 'Loaded from Open-Meteo' : E.status.wx || 'Loading…', h('span', { class: 'badge ' + (E.status.wx === 'ok' ? 'ok' : 'err') }, E.status.wx === 'ok' ? 'ok' : 'n/a')),
-      row('Google Pollen API key', 'Free pollen data for tree, grass and weed. Open-Meteo\'s free pollen data only covers Europe.', text('env.pollenKey', 'paste key', 'password', 220, () => E.refresh(['pollen']))),
-      h('p', { class: 'note' }, 'To get a pollen key: create a Google Cloud project, enable the "Pollen API", then create an API key (', link('https://developers.google.com/maps/documentation/pollen/overview', 'Google\'s guide'), '). It needs billing turned on, but personal use sits well inside the free monthly allowance. Restrict the key to the Pollen API. Weather and air quality come from ', link('https://open-meteo.com/', 'Open-Meteo'), ' (free, no key) and are model estimates, not a sensor on your roof.'));
+      h('div', { class: 'fx-group' }, 'Location'), E.locationControls(),
+      h('p', { class: 'note' }, 'The sneeze outlook is an estimate, not a pollen count. It combines the typical pollen season for the month with today\'s wind (stirs pollen up), humidity, rain (washes it out) and air quality (smoke, smog and dust irritate noses too). Weather and air quality come from ', link('https://open-meteo.com/', 'Open-Meteo'), ' (free, no key).'));
   }
 
   function calendar(m) {
@@ -272,7 +271,7 @@
         h('li', null, link('https://metmuseum.github.io/', 'The Met Collection API'), ', ', link('https://api.artic.edu/docs/', 'Art Institute of Chicago API'), ', ', link('https://openaccess-api.clevelandart.org/', 'Cleveland Museum of Art Open Access'), ', ', link('https://open.smk.dk/', 'SMK Open'), ', ', link('https://data.rijksmuseum.nl/', 'Rijksmuseum Data Services'), ', ', link('https://developers.vam.ac.uk/', 'V&A Collections API'), ', ', link('https://harvardartmuseums.org/collections/api', 'Harvard Art Museums API')),
         h('li', null, link('https://commons.wikimedia.org/wiki/Commons:Featured_pictures', 'Wikimedia Commons featured pictures'), ' (licence shown per image) · ', link('https://images.nasa.gov/', 'NASA Image and Video Library')),
         h('li', null, 'Windows Spotlight & Bing images via the approach used by ', link('https://github.com/ORelio/Spotlight-Downloader', 'Spotlight-Downloader'), ' and ', link('https://github.com/Qzincs/SpotlightGallery', 'SpotlightGallery'), ' (© the credited photographers)'),
-        h('li', null, 'Flights: adsb.lol, airplanes.live, adsb.fi, adsbdb, Planespotters.net · Weather: Open-Meteo (CAMS) · Pollen: Google Pollen API'),
+        h('li', null, 'Flights: adsb.lol, airplanes.live, adsb.fi, adsbdb, Planespotters.net · Weather & air quality: Open-Meteo (CAMS)'),
         h('li', null, 'Type: Fraunces, Inter, JetBrains Mono (SIL Open Font License)')),
       h('p', { class: 'note' }, 'Personal, non-commercial use. Museum works marked CC0 / public domain are free to use; V&A and Wikimedia images keep the licence shown in their caption.'));
   }

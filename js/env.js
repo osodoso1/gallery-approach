@@ -1,10 +1,9 @@
-/* Weather · UV · Air quality (Open-Meteo, keyless) · Pollen (Open-Meteo in Europe,
-   Google Pollen API with your own free key elsewhere, e.g. the Bay Area).
+/* Weather · UV · Air quality (Open-Meteo, keyless) · Sneeze outlook (an estimate, no key).
    Location: your device's position, a place you search for, or your flight-radar spot. */
 (function () {
   'use strict';
   const U = SS.u, h = U.h;
-  const EN = (SS.env2 = { wx: null, aq: null, pollen: null, status: {}, locNote: '' });
+  const EN = (SS.env2 = { wx: null, aq: null, status: {}, locNote: '' });
 
   const WMO = {
     0: ['Clear', 'sun'], 1: ['Mostly clear', 'sun'], 2: ['Partly cloudy', 'partly'], 3: ['Overcast', 'cloud'], 45: ['Fog', 'fog'], 48: ['Freezing fog', 'fog'],
@@ -26,8 +25,32 @@
   };
   EN.uvCat = v => (v == null ? null : v < 3 ? ['Low', '#7ee0a1'] : v < 6 ? ['Moderate', '#f5d76e'] : v < 8 ? ['High', '#ffb547'] : v < 11 ? ['Very high', '#ff6b5e'] : ['Extreme', '#c77dff']);
   EN.aqiCat = v => (v == null ? null : v <= 50 ? ['Good', '#7ee0a1'] : v <= 100 ? ['Moderate', '#f5d76e'] : v <= 150 ? ['Unhealthy for sensitive groups', '#ffb547'] : v <= 200 ? ['Unhealthy', '#ff6b5e'] : v <= 300 ? ['Very unhealthy', '#c77dff'] : ['Hazardous', '#a0303a']);
-  const UPI = ['None', 'Very low', 'Low', 'Moderate', 'High', 'Very high'];
-  const UPI_COL = ['#7ee0a1', '#7ee0a1', '#b9e07e', '#f5d76e', '#ffb547', '#ff6b5e'];
+  /* Sneeze outlook: how allergy-ish today is likely to feel. No pollen counts here, just the usual
+     drivers: typical pollen season for the month, wind (stirs pollen up), dry air, rain (washes it
+     out), and air quality (smoke, smog and dust irritate noses too). */
+  const LEVELS = [['Very low', '#7ee0a1'], ['Low', '#b9e07e'], ['Moderate', '#f5d76e'], ['High', '#ffb547'], ['Very high', '#ff6b5e']];
+  const TREE = [0.3, 0.6, 0.9, 1, 0.8, 0.4, 0.1, 0, 0, 0, 0, 0.1];   // Jan…Dec, northern hemisphere
+  const GRASS = [0, 0, 0.1, 0.4, 0.9, 1, 0.7, 0.4, 0.2, 0.1, 0, 0];
+  const WEED = [0, 0, 0, 0, 0, 0.1, 0.3, 0.7, 1, 0.7, 0.2, 0];
+  EN.sneeze = function () {
+    const w = EN.wx; if (!w) return null;
+    const L = EN.loc(), m = new Date().getMonth(), mm = L.lat < 0 ? (m + 6) % 12 : m;
+    const seasons = [['tree', TREE[mm]], ['grass', GRASS[mm]], ['weed', WEED[mm]]].sort((a, b) => b[1] - a[1]);
+    const [kind, top] = seasons[0];
+    const why = [];
+    let score = top * 2.2;
+    why.push(top >= 0.6 ? `${kind} pollen season` : top >= 0.3 ? `some ${kind} pollen around` : 'a quiet time of year for pollen');
+    const mph = w.wind == null ? 0 : isF() ? w.wind : w.wind / 1.609;
+    if (mph >= 12) { score += 0.8; why.push('breezy, which stirs pollen up'); } else if (mph >= 7) score += 0.3;
+    if (w.rh != null && w.rh < 40) { score += 0.4; why.push('dry air'); } else if (w.rh != null && w.rh > 80) score -= 0.3;
+    const raining = (w.code >= 51 && w.code <= 67) || (w.code >= 80 && w.code <= 82) || w.code >= 95;
+    if (raining) { score -= 1.2; why.push('rain is washing pollen out of the air'); } else if (w.rain >= 60) { score -= 0.3; why.push('rain likely later'); }
+    const aqi = EN.aq && EN.aq.aqi;
+    if (aqi > 100) { score += 1; why.push('poor air quality (smoke or smog irritate noses too)'); } else if (aqi > 50) { score += 0.4; why.push('moderate air quality'); }
+    if (EN.aq && EN.aq.pm10 > 50) { score += 0.4; why.push('dusty air'); }
+    const level = U.clamp(Math.round(score), 0, 4);
+    return { level, label: LEVELS[level][0], color: LEVELS[level][1], why };
+  };
   const isF = () => (SS.settings.env.units || 'F') === 'F';
   const deg = v => (v == null ? '—' : Math.round(v) + '°');
 
@@ -81,32 +104,16 @@
   }
   async function loadAir() {
     const { lat, lon } = EN.loc();
-    const d = await U.fetchJSON(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10,ozone,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto`, { timeout: 12000 });
+    const d = await U.fetchJSON(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10,ozone&timezone=auto`, { timeout: 12000 });
     const c = d.current || {};
     EN.aq = { aqi: c.us_aqi, pm25: c.pm2_5, pm10: c.pm10, o3: c.ozone, at: Date.now() };
     EN.status.aq = c.us_aqi != null ? 'ok' : 'no data here';
-    const sp = { Alder: c.alder_pollen, Birch: c.birch_pollen, Grass: c.grass_pollen, Mugwort: c.mugwort_pollen, Olive: c.olive_pollen, Ragweed: c.ragweed_pollen };
-    const vals = Object.entries(sp).filter(([, v]) => v != null);
-    if (vals.length && !SS.settings.env.pollenKey) {
-      const lvl = v => (v < 1 ? 0 : v < 10 ? 2 : v < 50 ? 3 : v < 200 ? 4 : 5);
-      EN.pollen = { src: 'Open-Meteo (CAMS Europe)', types: vals.map(([n, v]) => ({ name: n, value: lvl(v) })), at: Date.now() };
-      EN.status.pollen = 'ok';
-    }
-  }
-  async function loadPollen() {
-    const key = SS.settings.env.pollenKey;
-    if (!key) { if (!EN.pollen) EN.status.pollen = 'nokey'; return; }
-    const { lat, lon } = EN.loc();
-    const d = await U.fetchJSON(`https://pollen.googleapis.com/v1/forecast:lookup?key=${encodeURIComponent(key)}&location.latitude=${lat}&location.longitude=${lon}&days=1&plantsDescription=false`, { timeout: 12000 });
-    const day = d.dailyInfo && d.dailyInfo[0];
-    EN.pollen = { src: 'Google Pollen API', types: ((day && day.pollenTypeInfo) || []).map(p => ({ name: p.displayName || p.code, value: p.indexInfo ? p.indexInfo.value : 0, inSeason: p.inSeason })), at: Date.now() };
-    EN.status.pollen = 'ok';
   }
   async function refresh(which) {
     if (!SS.settings.env.enabled) { render(); return; }
-    const jobs = { wx: loadWeather, aq: loadAir, pollen: loadPollen };
+    const jobs = { wx: loadWeather, aq: loadAir };
     await Promise.all((which || Object.keys(jobs)).map(k => jobs[k]().catch(e => {
-      EN.status[k] = SS.env.cspBlocked ? "blocked in the claude.ai preview" : (e && e.status === 403 ? 'key not accepted' : (e && e.message) || 'unavailable');
+      EN.status[k] = SS.env.cspBlocked ? "blocked in the claude.ai preview" : (e && e.message) || 'unavailable';
     })));
     render();
   }
@@ -126,8 +133,7 @@
     refresh();
     setInterval(() => refresh(['wx']), 15 * 60e3);
     setInterval(() => refresh(['aq']), 30 * 60e3);
-    setInterval(() => refresh(['pollen']), 3 * 3600e3);
-    SS.on('settings', p => { if (p === 'cloud' || /^env\.(loc|units|pollenKey|enabled)|^flight\.(lat|lon)/.test(p || '')) refresh(); else if (/^env/.test(p || '')) render(); });
+    SS.on('settings', p => { if (p === 'cloud' || /^env\.(loc|units|enabled)|^flight\.(lat|lon)/.test(p || '')) refresh(); else if (/^env/.test(p || '')) render(); });
   };
 
   function chip(label, value, color) { return h('span', { class: 'wx-chip' }, h('i', { style: { background: color } }), h('em', null, label), value); }
@@ -138,8 +144,8 @@
     if (uc) out.push(chip('UV', `${Math.round(uv)} ${uc[0]}`, uc[1]));
     const a = EN.aq && EN.aq.aqi, ac = EN.aqiCat(a);
     if (ac) out.push(chip('AQI', `${Math.round(a)} ${ac[0].replace('Unhealthy for sensitive groups', 'Sensitive')}`, ac[1]));
-    if (EN.pollen && EN.pollen.types.length) { const top = EN.pollen.types.slice().sort((x, y) => y.value - x.value)[0]; out.push(chip('Pollen', `${top.name} ${UPI[top.value] || ''}`, UPI_COL[top.value] || '#7ee0a1')); }
-    else out.push(chip('Pollen', SS.settings.env.pollenKey ? '—' : 'add key', '#6c7588'));
+    const sn = EN.sneeze();
+    if (sn) out.push(chip('Sneeze', sn.label, sn.color));
     return out;
   }
   function details(compact) {
@@ -155,13 +161,17 @@
         row('UV now · today\'s max', `${w.uv != null ? Math.round(w.uv) : '—'} · ${w.uvMax != null ? Math.round(w.uvMax) : '—'}${uvc ? ' (' + uvc[0] + ')' : ''}`),
         EN.aq && EN.aq.aqi != null ? row('Air quality (US AQI)', `${Math.round(EN.aq.aqi)}${ac ? ' · ' + ac[0] : ''}`) : row('Air quality', EN.status.aq || '—'),
         EN.aq && EN.aq.pm25 != null ? row('PM2.5 · ozone', `${EN.aq.pm25.toFixed(1)} · ${EN.aq.o3 != null ? Math.round(EN.aq.o3) : '—'} µg/m³`) : '',
-        ...(EN.pollen && EN.pollen.types.length ? EN.pollen.types.map(p => row(`Pollen · ${p.name}`, `${UPI[p.value] || '—'}${p.inSeason === false ? ' (out of season)' : ''}`)) : [row('Pollen', SS.settings.env.pollenKey ? (EN.status.pollen || 'loading…') : 'Needs a free Google Pollen key (Settings → Weather)')]),
         row('Sunrise · sunset', `${t(w.sunrise)} · ${t(w.sunset)}`));
+      const sn = EN.sneeze();
+      if (sn) box.append(h('div', { class: 'wx-sneeze', style: { '--c': sn.color } },
+        h('div', { class: 'wx-sneeze-h' }, h('span', null, 'Sneeze outlook'), h('b', null, sn.label)),
+        h('div', { class: 'wx-sneeze-why' }, 'Why: ' + sn.why.join(' · ')),
+        h('div', { class: 'note' }, 'An estimate from the typical pollen season, wind, humidity, rain and air quality. It isn\'t a pollen count.')));
     } else {
       box.append(h('p', { class: 'note' }, SS.env.cspBlocked ? "The claude.ai preview can't reach the weather service. On the website or Pi version this fills in automatically." : `Weather isn't loading (${EN.status.wx || 'connecting'}).`));
     }
     box.append(locationControls(compact));
-    box.append(h('div', { class: 'fc-src' }, 'Weather & air quality: ', h('a', { href: 'https://open-meteo.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Open-Meteo'), ' (model data, CC BY 4.0)', EN.pollen ? ` · Pollen: ${EN.pollen.src}` : '', '. Estimates, not a sensor at your spot.'));
+    box.append(h('div', { class: 'fc-src' }, 'Weather & air quality: ', h('a', { href: 'https://open-meteo.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Open-Meteo'), ' (model data, CC BY 4.0). Estimates, not a sensor at your spot.'));
     return box;
   }
   function locationControls() {

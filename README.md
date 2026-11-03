@@ -1,6 +1,6 @@
 # Gallery Approach
 
-A personal, just-for-fun screensaver. It shows open-access works of art, beautiful photography and your own photos, using the old-school PowerPoint slide transitions (Checkerboard, Dissolve, Newsflash, Blinds, Wheel, Cube, Fold, Curtains, Airplane and 30-some more). A slim, see-through strip at the bottom shows the next plane landing at SFO, which passes right over Foster City. Under the clock you get weather, UV, air quality and pollen. A side panel holds your calendar and a little to-do board. There's also a hidden air-traffic-control game.
+A personal, just-for-fun screensaver. It shows open-access works of art, beautiful photography and your own photos, using the old-school PowerPoint slide transitions (Checkerboard, Dissolve, Newsflash, Blinds, Wheel, Cube, Fold, Curtains, Airplane and 30-some more). A slim, see-through strip at the bottom shows the next plane landing at SFO, which passes right over Foster City. Under the clock you get weather, UV, air quality and a sneeze outlook. A side panel holds your calendar and a little to-do board. There's also a hidden air-traffic-control game.
 
 Every picture says where it came from: source, title, artist, date and licence, plus a link to the original.
 
@@ -66,7 +66,7 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 - **⏱ in the control bar** sets how often the picture changes: 30 sec up to 1 hr (default 2 min). Generative pieces stay at most 2 min.
 - **Swipe** or **← →** for the previous / next picture · **space** pause · **I** about this picture · **T** transitions · **P** photos · **C** calendar · **R** radar · **S** settings · **F** full screen
 - **Tap a caption** (or ⓘ) for *About this picture*: the source, artist, date, medium, credit line, licence, which server the image file came from, and a link to the original.
-- **Weather** sits under the clock as a drop-down: tap to open UV, air quality, pollen and more, or hide it. It's also the **Weather** tab in the side panel. Location comes from your device ("Use my location"), a place you search for, or your flight spot.
+- **Weather** sits under the clock as a drop-down: tap to open UV, air quality, the sneeze outlook and more, or hide it. It's also the **Weather** tab in the side panel. Location comes from your device ("Use my location"), a place you search for, or your flight spot.
 - **Tap the flight strip** for the full card. It shows a real photo when Planespotters has one (credited to the photographer), otherwise an illustration of that aircraft type, labelled as an illustration.
 - **Easter egg:** long-press the flight strip, triple-tap the flight number, or type ↑↑↓↓←→←→BA. Your first plane is the one landing right now (or the last one the radar saw). Drag it to its runway, then keep the rest of the traffic apart.
 
@@ -101,9 +101,9 @@ Google Arts & Culture has no public API, so it can't be included automatically. 
 - The default spot is a point in Foster City, right under the 28L/28R approach. Set your exact spot in ⚙ → Flights ("Use my location" works over HTTPS or on the Pi itself).
 - If live data can't be reached, the strip says **SIMULATED** and shows made-up flights on the real 28L/28R approach path. It never passes these off as live.
 
-## Weather, UV, air quality, pollen
+## Weather, UV, air quality, sneeze outlook
 
-[Open-Meteo](https://open-meteo.com) provides weather, UV and US AQI with no key. Its free pollen data only covers Europe, so for the Bay Area, paste a free **Google Pollen API** key in ⚙ → Weather & air (create a Google Cloud project, enable "Pollen API", create a key). Billing must be enabled, but personal use fits in the free monthly allowance. Restrict the key to the Pollen API.
+[Open-Meteo](https://open-meteo.com) provides weather, UV and US AQI with no key and no fee. There's no free pollen count for the US (Open-Meteo's pollen data only covers Europe), so instead of a count the app shows a **sneeze outlook**: an estimate that combines the typical pollen season for the month with today's wind (stirs pollen up), humidity, rain (washes it out) and air quality (smoke, smog and dust irritate noses too). It always says why, e.g. "grass pollen season · breezy, which stirs pollen up". It's a hint, not a measurement.
 
 ## Sync
 
@@ -127,7 +127,7 @@ js/fx.js                    the transitions (add your own with def(...))
 js/sources.js               image sources + the mixer
 js/flights.js, radar.js     SFO arrivals data, strip, radar
 js/game.js                  the tower game
-js/env.js                   weather / UV / AQI / pollen
+js/env.js                   weather / UV / AQI / sneeze outlook
 js/planner.js               calendar (iCal + RRULE), to-do board, weather tab
 js/cloud.js                 sync through your claude.ai account (claude.ai page only)
 server/server.js            companion server for a Pi or computer (Node 18+, no dependencies)

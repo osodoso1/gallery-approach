@@ -414,3 +414,11 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 
 @media (prefers-reduced-motion: reduce) {
   .shiftable { transition: none; }
 }
+
+/* Sneeze outlook */
+.wx-sneeze { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.04); border-left: 3px solid var(--c, var(--amber)); }
+.wx-sneeze-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; }
+.wx-sneeze-h span { color: var(--muted); }
+.wx-sneeze-h b { font-size: 14px; color: var(--c, var(--text)); }
+.wx-sneeze-why { margin-top: 5px; font-size: 12.5px; line-height: 1.45; }
+.wx-sneeze .note { margin-top: 6px; }
