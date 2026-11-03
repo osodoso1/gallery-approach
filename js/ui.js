@@ -4,14 +4,42 @@
   const U = SS.u, h = U.h;
   const UI = (SS.ui = { gameOpen: false });
 
-  /* ── Awake / idle ── */
-  let idleT = null;
+  /* ── Awake (controls showing) and calm (only the art and the clock) ──
+     Any touch, click, key or mouse move wakes things up. After a few seconds the control
+     bar slides away; after SS.settings.calm seconds the weather, chips, caption and flight tab
+     fade too, so the art has the screen to itself. */
+  let idleT = null, calmT = null, lastPtr = 'mouse', lastPoke = Date.now();
+  const hudHeld = () => lastPtr === 'mouse' && U.$('#hud:hover'); // iOS keeps :hover stuck after a tap, so only trust it for a mouse
   UI.wakeUp = function () {
     document.body.classList.add('awake');
     clearTimeout(idleT);
-    idleT = setTimeout(() => { if (!U.$('#hud:hover')) document.body.classList.remove('awake'); }, 3800);
+    const hide = () => { if (hudHeld()) idleT = setTimeout(hide, 2000); else document.body.classList.remove('awake'); };
+    idleT = setTimeout(hide, 3800);
+    UI.unCalm();
   };
-  ['pointermove', 'pointerdown', 'keydown', 'wheel'].forEach(ev => addEventListener(ev, e => { if (ev === 'pointermove' && e.pointerType === 'touch') return; UI.wakeUp(); }, { passive: true }));
+  const busy = () => SS.settingsUI.isOpen || (SS.radar && SS.radar.bigOpen) || UI.gameOpen || document.body.classList.contains('panel-open')
+    || (document.activeElement && document.activeElement.matches && document.activeElement.matches('input, textarea, select'));
+  UI.isCalm = () => document.body.classList.contains('calm');
+  UI.unCalm = function () {
+    lastPoke = Date.now();
+    document.body.classList.remove('calm');
+    clearTimeout(calmT);
+    if (SS.settings.calm > 0) calmT = setTimeout(goCalm, SS.settings.calm * 1000);
+  };
+  function goCalm() {
+    const cardOpen = (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen;
+    if (busy() || (cardOpen && Date.now() - lastPoke < 60000)) { calmT = setTimeout(goCalm, 5000); return; }
+    document.body.classList.add('calm');
+    SS.radar && (SS.radar.closeCard(), SS.radar.tuck());
+    UI.info.close(); UI.timer.close();
+    SS.emit('calm', true);
+  }
+  UI.calmNow = () => { clearTimeout(calmT); clearTimeout(idleT); document.body.classList.remove('awake'); goCalm(); };
+  ['pointermove', 'pointerdown', 'keydown', 'wheel'].forEach(ev => addEventListener(ev, e => {
+    if (e.pointerType) lastPtr = e.pointerType;
+    if (ev === 'pointermove' && e.pointerType !== 'mouse') return;
+    UI.wakeUp();
+  }, { passive: true }));
 
   /* ── HUD ── */
   function initHud() {
@@ -21,7 +49,7 @@
         prev: () => SS.show.prev(), next: () => SS.show.advance(), play: () => SS.show.toggle(),
         fx: () => SS.settingsUI.open('fx'), photos: () => SS.settingsUI.open('photos'), panel: () => SS.planner.toggle(),
         radar: () => SS.radar.openBig(), settings: () => SS.settingsUI.open(), full: () => UI.fullscreen(),
-        info: () => UI.info.toggle(), timer: () => UI.timer.toggle(),
+        info: () => UI.info.toggle(), timer: () => UI.timer.toggle(), clock: () => UI.toggleClock(),
       }[b.dataset.act] || (() => {}))();
     });
     U.$('#panelTab').addEventListener('click', () => SS.planner.open());
@@ -33,7 +61,13 @@
 
   /* ── Caption ── */
   const cap = (UI.caption = {});
-  let capItem = null;
+  let capItem = null, peekT = null;
+  // A new picture always says where it came from for a few seconds, even when everything else has faded.
+  const peek = () => {
+    const el = U.$('#caption'); el.classList.add('peek'); document.body.classList.add('cap-peek');
+    clearTimeout(peekT);
+    peekT = setTimeout(() => { el.classList.remove('peek'); document.body.classList.remove('cap-peek'); }, Math.max(8, Math.min(SS.settings.calm || 15, 15)) * 1000);
+  };
   cap.hide = () => U.$('#caption').classList.remove('on');
   cap.refresh = () => capItem && cap.show(capItem);
   cap.show = function (item) {
@@ -50,7 +84,7 @@
       h('div', { class: 'cap-title' + (item.kind === 'art' ? '' : ' upright') }, U.truncate(U.text(item.title) || 'Untitled', 140), h('span', { class: 'cap-open' }, 'ⓘ')),
       meta ? h('div', { class: 'cap-meta' }, U.truncate(U.text(meta), 120)) : '',
       item.credit || item.detail ? h('div', { class: 'cap-credit' }, U.truncate(U.text([item.detail, item.credit].filter(Boolean).join(' · ')), 160)) : '');
-    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('on')));
+    requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.add('on'); peek(); }));
   };
   U.$('#caption').addEventListener('click', e => { e.stopPropagation(); UI.info.open(capItem); });
   U.$('#caption').addEventListener('keydown', e => { if (e.key === 'Enter') UI.info.open(capItem); });
@@ -74,7 +108,8 @@
       h('div', { class: 'fc-body' },
         h('div', { class: 'cap-src' }, h('span', { class: 'cap-dot', style: { '--c': p.color || '#fff' } }), 'About this picture'),
         h('div', { class: 'ic-title' }, U.text(item.title) || 'Untitled'),
-        gen ? h('p', { class: 'ic-note' }, `Generative art: this app drew it itself, with code, right on this screen. It isn't a photo of anything and it isn't AI-made. It fills in when real art can't load, and stays at most ${Math.round((SS.settings.genSeconds || 120) / 60)} min.`) : '',
+        gen ? h('p', { class: 'ic-note' }, `Generative art: this app drew it itself, with code, right on this screen. It isn't a photo of anything and it isn't AI-made. It stays at most ${Math.round((SS.settings.genSeconds || 120) / 60)} min.`) : '',
+        gen ? h('div', { style: { margin: '0 0 10px' } }, h('button', { class: 'btn small', onclick: e => { e.stopPropagation(); SS.setSetting('weights.generative', -1); info.close(); SS.pool.genChanged(); U.toast('Generative art is off. Turn it back on in Settings → Slideshow.'); } }, 'Don\'t show generative art')) : '',
         row('Source', p.name || item.src),
         !mine && !gen ? row('By', U.text(item.creator)) : '',
         row(mine ? 'Taken' : 'Date', mine ? (item.taken ? U.fmt.date(item.taken) : '') : U.text(item.date)),
@@ -113,8 +148,15 @@
   timer.toggle = () => (timer.isOpen ? timer.close() : timer.open());
 
   /* ── Clock + next event + tasks ── */
+  UI.toggleClock = function () {
+    SS.setSetting('clock', !SS.settings.clock);
+    UI.tickClock();
+    U.toast(SS.settings.clock ? 'Clock on' : 'Clock hidden. Tap the clock button to bring it back.');
+  };
   UI.tickClock = function () {
     const c = U.$('#clock'), s = SS.settings, now = new Date();
+    document.body.classList.toggle('no-clock', !s.clock);
+    const cb = U.$('#hud [data-act=clock]'); if (cb) cb.classList.toggle('off', !s.clock);
     c.hidden = !s.clock && !s.env.enabled;
     U.$('.clk-time', c).hidden = !s.clock; U.$('#clkDate').hidden = !s.clock;
     let hh = now.getHours(); const mm = String(now.getMinutes()).padStart(2, '0');
@@ -169,6 +211,8 @@
       else if (k === 'c') SS.planner.toggle();
       else if (k === 'r') SS.radar.openBig();
       else if (k === 'i') UI.info.toggle();
+      else if (k === 'k') UI.toggleClock();
+      else if (k === 'h') UI.calmNow();
     });
   }
 
@@ -222,8 +266,9 @@
     UI.night(); setInterval(UI.night, 60000);
     setInterval(shift, 4 * 60000);
     SS.on('csp', banner); banner();
-    SS.on('agenda', UI.tickClock); SS.on('state', UI.tickClock); SS.on('settings', p => { if (p === 'cloud' || /clock|agenda|env/.test(p || '')) UI.tickClock(); if (p === 'cloud' || p === 'slideSeconds') UI.timerLabel(); });
+    SS.on('agenda', UI.tickClock); SS.on('state', UI.tickClock); SS.on('settings', p => { if (p === 'cloud' || /clock|agenda|env/.test(p || '')) UI.tickClock(); if (p === 'cloud' || p === 'slideSeconds') UI.timerLabel(); if (p === 'calm') UI.unCalm(); });
     UI.timerLabel();
     UI.wake();
+    UI.unCalm();
   };
 })();

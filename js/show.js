@@ -16,11 +16,13 @@
 
   async function prepareNext() {
     for (let i = 0; i < 6; i++) {
-      const item = (await SS.pool.takeWait(i === 0 && !S.cur ? 9000 : 6000)) || SS.gen.make();
+      const item = (await SS.pool.takeWait(i === 0 && !S.cur ? 9000 : 6000)) || SS.pool.fallback();
+      if (!item) break;
       try { return await prepare(item); }
       catch (e) { console.info('[show] skipped', item.key, e.message); SS.pool.markBad(item); }
     }
-    return prepare(SS.gen.make());
+    const fb = SS.pool.fallback();
+    return fb ? prepare(fb) : null; // generative art is off and nothing has loaded yet: keep waiting
   }
   S.prepare = prepare;
 
@@ -72,7 +74,8 @@
     let ok = false;
     try {
       let nx = opts.slide;
-      if (!nx) { nx = await (S.nextP || prepareNext()); S.nextP = null; }
+      if (!nx) { nx = await (S.nextP || prepareNext()).catch(() => null); S.nextP = null; }
+      if (!nx) { S.busy = false; if (!S.cur && !S.waitToast) { S.waitToast = true; U.toast('Waiting for art to load…'); } schedule(8000); return; }
       rerender(nx);
       const st = C.stage();
       nx.kb = C.kbParams(nx.mode, st);

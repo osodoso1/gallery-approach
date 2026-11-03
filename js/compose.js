@@ -106,7 +106,10 @@
     const pad = Math.round(m * (item.kind === 'art' ? 0.075 : 0.035));
     const landscape = st.pw > st.ph;
     const padTop = Math.round(pad * (landscape ? 0.9 : 1.6));
-    const padBottom = Math.round(pad + (SS.settings.caption === 'off' ? 0 : st.ph * (landscape ? 0.11 : 0.16)) + (SS.settings.flight.strip ? 40 * st.k : 0));
+    // The caption fades away after a while (calm mode), so the art gets most of the room.
+    const calm = SS.settings.calm > 0;
+    const capRoom = SS.settings.caption === 'off' ? 0 : st.ph * (landscape ? (calm ? 0.07 : 0.11) : (calm ? 0.1 : 0.16));
+    const padBottom = Math.round(pad + capRoom + (SS.stripMode() === 'always' ? 40 * st.k : 0));
     const boxW = st.pw - pad * 2, boxH = st.ph - padTop - padBottom;
     const s = Math.min(boxW / iw, boxH / ih);
     const dw = Math.round(iw * s), dh = Math.round(ih * s);

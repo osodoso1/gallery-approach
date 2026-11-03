@@ -1,5 +1,5 @@
 /* Offline shell for Gallery Approach. Network first, so updates show up straight away. */
-const CACHE = 'gallery-approach-v2';
+const CACHE = 'gallery-approach-v3';
 const SHELL = ['./', 'index.html', 'css/app.css', 'manifest.webmanifest',
   'js/core.js', 'js/gen.js', 'js/photos.js', 'js/sources.js', 'js/compose.js', 'js/fx.js', 'js/show.js', 'js/flights.js', 'js/radar.js', 'js/game.js', 'js/planner.js', 'js/env.js', 'js/settings.js', 'js/ui.js', 'js/cloud.js', 'js/main.js',
   'assets/fonts/fraunces-latin-opsz-normal.woff2', 'assets/fonts/fraunces-latin-opsz-italic.woff2', 'assets/fonts/inter-latin-opsz-normal.woff2', 'assets/fonts/jetbrains-mono-latin-wght-normal.woff2',

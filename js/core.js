@@ -43,6 +43,9 @@
     mute: '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9l5 6M22 9l-5 6"/>',
     ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>',
     pin: '<path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
+    compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+    plane: '<path d="M12 2.5c.8 0 1.4.7 1.4 1.6V9l7.6 4.6v2.1l-7.6-2.3v4.8l2.2 1.7V21L12 20.1 8.4 21v-1.1l2.2-1.7v-4.8L3 15.7v-2.1L10.6 9V4.1c0-.9.6-1.6 1.4-1.6z"/>',
+    down: '<path d="M6 9l6 6 6-6"/>',
   };
   U.icon = name => U.svg(U.icons[name] || '');
 
@@ -239,7 +242,7 @@
 
   /* ── Settings ── */
   const DEFAULTS = {
-    v: 3,
+    v: 4,
     slideSeconds: 120,          // how long each picture stays (seconds)
     genSeconds: 120,            // generative pieces never stay longer than this
     speed: 'medium',            // slow | medium | fast
@@ -251,7 +254,7 @@
     caption: 'full',            // full | minimal | off
     artFocus: 'paintings',      // paintings | everything
     personalShare: 30,          // % of slides from your photos (when you have some)
-    weights: {                  // 0 off · 1 low · 2 normal · 3 high
+    weights: {                  // 0 off · 1 low · 2 normal · 3 high  (generative: -1 never · 0 only if nothing else loads)
       met: 2, aic: 2, cleveland: 2, smk: 2, rijks: 1, vam: 1, harvard: 2,
       wikimedia: 2, nasa: 1, spotlight: 2, bing: 2, generative: 1,
     },
@@ -259,12 +262,13 @@
     harvardKey: '',
     clock: true,
     clock24: false,
+    calm: 20,                   // seconds of no touching before everything but the art (and clock) fades · 0 = never
     agendaChip: true,
-    flight: { enabled: true, mode: 'auto', lat: 37.5636, lon: -122.2730, place: 'Foster City', airport: 'SFO', radius: 22, strip: true },
+    flight: { enabled: true, mode: 'auto', lat: 37.5636, lon: -122.2730, place: 'Foster City', airport: 'SFO', radius: 22, strip: 'tab' },   // strip: tab (tucked away) | always | off
     env: { enabled: true, units: 'F', pollenKey: '', show: 'compact', loc: { mode: 'device', lat: null, lon: null, name: '' } },
     photoSync: true,
     serverUrl: '',              // optional: your Pi (http://pi.local:8080) or the Cloudflare Worker URL
-    syncKey: '',                // optional: passphrase for syncing through the Cloudflare Worker            // hosted on claude.ai: also keep your photos in your account so other devices see them
+    syncKey: '',                // optional: passphrase for syncing through the Cloudflare Worker
     night: { enabled: false, from: '22:00', to: '06:30', level: 0.78 },
     burnIn: true,
     sound: false,
@@ -282,7 +286,10 @@
   const stored = U.store.get('settings', {});
   if (!stored.v || stored.v < 2) { if (stored.slideSeconds === 20) stored.slideSeconds = 120; }
   if (!stored.v || stored.v < 3) { if (stored.weights && stored.weights.generative === 0) stored.weights.generative = 1; stored.v = 3; }
+  if (stored.v < 4) { if (stored.flight && typeof stored.flight.strip === 'boolean') stored.flight.strip = stored.flight.strip ? 'tab' : 'off'; stored.v = 4; }
   SS.settings = merge(DEFAULTS, stored);
+  // Flight strip: 'tab' (tucked behind a small tab) | 'always' | 'off'. Older devices may sync a boolean.
+  SS.stripMode = () => { const f = SS.settings.flight, v = f.strip; return !f.enabled || f.mode === 'off' || v === false || v === 'off' ? 'off' : v === 'always' ? 'always' : 'tab'; };
   SS.saveSettings = U.debounce(() => {
     SS.settings._at = Date.now();
     U.store.set('settings', SS.settings);

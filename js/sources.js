@@ -238,8 +238,24 @@
   };
 
   /* ── Mixer ─────────────────────────────────────────── */
-  const pool = (SS.pool = { queues: {}, fetching: {}, fails: {}, cooldown: {}, status: {}, queuedKeys: new Set(), history: new Set(U.store.get('history', [])) });
-  const saveHistory = U.debounce(() => U.store.set('history', Array.from(pool.history).slice(-900)), 2000);
+  const pool = (SS.pool = { queues: {}, fetching: {}, fails: {}, cooldown: {}, status: {}, queuedKeys: new Set(), history: new Set(U.store.get('history', [])), recent: U.store.get('recentArt', []) });
+  const saveHistory = U.debounce(() => { U.store.set('history', Array.from(pool.history).slice(-900)); U.store.set('recentArt', pool.recent.slice(-40)); }, 2000);
+  // Generative art: -1 never · 0 only when nothing else can load · 1 now and then · 2 often
+  pool.genAllowed = () => (SS.settings.weights.generative ?? 1) >= 0;
+  // With generative art off and nothing new loading, show a recent piece again instead.
+  pool.rerun = function () {
+    const cur = SS.show.cur && SS.show.cur.item && SS.show.cur.item.key;
+    const list = pool.recent.filter(it => it.key !== cur);
+    return list.length ? Object.assign({}, U.pick(list), { rerun: true }) : null;
+  };
+  // Turning generative art off takes effect now: drop a prepared generative slide and skip one that's showing.
+  pool.genChanged = function () {
+    pool.warm();
+    if (pool.genAllowed()) return;
+    SS.show.nextP = null;
+    if (SS.show.cur && SS.show.cur.item.src === 'generative') SS.show.advance();
+  };
+  pool.fallback = () => (pool.genAllowed() ? SS.gen.make() : pool.rerun());
 
   pool.weightOf = id => {
     const p = P[id]; if (!p) return 0;
@@ -306,11 +322,19 @@
       // nothing can arrive (all sources failed or are blocked) → don't keep the screen waiting
       const live = ORDER.filter(id => id !== 'generative' && pool.weightOf(id) > 0);
       const hopeless = live.every(id => !pool.fetching[id] && (pool.fails[id] || 0) > 0) && !(SS.settings.personalOn && SS.photos.count);
-      if (hopeless || (SS.env.cspBlocked && !(SS.settings.personalOn && SS.photos.count))) return SS.gen.make();
+      if (hopeless || (SS.env.cspBlocked && !(SS.settings.personalOn && SS.photos.count))) { const fb = pool.fallback(); if (fb) return fb; }
       await U.sleep(250);
     }
     return null;
   };
-  pool.markShown = item => { if (item && item.key && item.src !== 'personal' && item.src !== 'generative') { pool.history.add(item.key); saveHistory(); } };
-  pool.markBad = item => pool.markShown(item);
+  pool.markShown = item => {
+    if (!item || !item.key || item.src === 'personal' || item.src === 'generative') return;
+    pool.history.add(item.key);
+    if (!item.rerun && item.urls) {
+      const { key, src, kind, urls, title, creator, date, detail, credit, license, link } = item;
+      pool.recent = pool.recent.filter(x => x.key !== key).concat([{ key, src, kind, urls: urls.filter(u => typeof u === 'string' && /^https?:/.test(u)), title, creator, date, detail, credit, license, link }]).filter(x => x.urls.length).slice(-40);
+    }
+    saveHistory();
+  };
+  pool.markBad = item => { if (!item) return; pool.recent = pool.recent.filter(x => x.key !== item.key); if (item.key && item.src !== 'personal' && item.src !== 'generative') { pool.history.add(item.key); saveHistory(); } };
 })();

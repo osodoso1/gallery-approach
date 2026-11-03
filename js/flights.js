@@ -145,14 +145,117 @@
   };
   F.silhouette = (kind, code) => F.art(code || ({ wide: 'B789', jumbo: 'B748', regional: 'E75L', prop: 'DH8D', light: 'C172', bizjet: 'GLF6' }[kind] || 'A320'));
 
+  /* ── Real photos ──────────────────────────────────
+     1. Planespotters: this exact plane (live flights, looked up in enrich()).
+     2. Wikimedia Commons: this registration, then this airline + type, then Wikipedia's lead
+        photo of the type. Free-licence photos, always credited. Cached on the device. */
+  // Words that match how Commons files are usually named.
+  const PQ = {
+    A319: 'A319', A320: 'A320', A20N: 'A320neo', A321: 'A321', A21N: 'A321neo', BCS1: 'A220-100', BCS3: 'A220-300', A332: 'A330-200', A333: 'A330-300', A339: 'A330-900',
+    A359: 'A350-900', A35K: 'A350-1000', A388: 'A380', B712: '717', B737: '737-700', B738: '737-800', B739: '737-900', B38M: '737 MAX 8', B39M: '737 MAX 9',
+    B752: '757-200', B753: '757-300', B763: '767-300', B764: '767-400', B772: '777-200', B77W: '777-300ER', B77L: '777-200LR', B788: '787-8', B789: '787-9', B78X: '787-10',
+    B744: '747-400', B748: '747-8', MD11: 'MD-11', E170: 'E170', E75L: 'E175', E75S: 'E175', E190: 'E190', E295: 'E195-E2', CRJ2: 'CRJ200', CRJ7: 'CRJ700', CRJ9: 'CRJ900', DH8D: 'Dash 8-400', AT76: 'ATR 72-600',
+  };
+  // Wikipedia article whose lead photo shows the type.
+  const WK = {
+    A319: 'Airbus A319', A320: 'Airbus A320 family', A20N: 'Airbus A320neo family', A321: 'Airbus A321', A21N: 'Airbus A321neo', BCS1: 'Airbus A220', BCS3: 'Airbus A220',
+    A332: 'Airbus A330', A333: 'Airbus A330', A339: 'Airbus A330neo', A359: 'Airbus A350', A35K: 'Airbus A350', A388: 'Airbus A380', B712: 'Boeing 717',
+    B737: 'Boeing 737 Next Generation', B738: 'Boeing 737 Next Generation', B739: 'Boeing 737 Next Generation', B38M: 'Boeing 737 MAX', B39M: 'Boeing 737 MAX',
+    B752: 'Boeing 757', B753: 'Boeing 757', B763: 'Boeing 767', B764: 'Boeing 767', B772: 'Boeing 777', B77W: 'Boeing 777', B77L: 'Boeing 777',
+    B788: 'Boeing 787 Dreamliner', B789: 'Boeing 787 Dreamliner', B78X: 'Boeing 787 Dreamliner', B744: 'Boeing 747-400', B748: 'Boeing 747-8', MD11: 'McDonnell Douglas MD-11',
+    E170: 'Embraer E-Jet family', E75L: 'Embraer E-Jet family', E75S: 'Embraer E-Jet family', E190: 'Embraer E-Jet family', E295: 'Embraer E-Jet E2 family',
+    CRJ2: 'Bombardier CRJ100/200', CRJ7: 'Bombardier CRJ700 series', CRJ9: 'Bombardier CRJ700 series', DH8D: 'De Havilland Canada Dash 8', AT76: 'ATR 72',
+    C172: 'Cessna 172', SR22: 'Cirrus SR22', PC12: 'Pilatus PC-12', GLF6: 'Gulfstream G650', GL7T: 'Bombardier Global 7500',
+  };
+  const COMMONS = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*';
+  const II = '&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=1280&iiextmetadatafilter=Artist|LicenseShortName';
+  const NOT_EXTERIOR = /cabin|seat|interior|cockpit|flight.?deck|galley|lounge|lavator|toilet|meal|menu|model|toy|diorama|lego|livery|drawing|render|diagram|\bmap\b|logo|sticker|ticket|boarding|uniform|crew|wreck|crash|accident|engine|nacelle|winglet|landing.?gear|wheel|close.?up|detail|window|\bdoor|screen|museum|scale/i;
+  const NICE = /landing|approach|final|take.?off|departing|arriving|in.?flight|airborne|climb|rotat|touch.?down|\bSFO\b|San.Francisco/i;
+  const tpCache = U.store.get('typePhotos', {}), tpPending = new Set(), tpFail = {};
+  const saveTP = U.debounce(() => { const k = Object.keys(tpCache); k.slice(0, Math.max(0, k.length - 150)).forEach(x => delete tpCache[x]); U.store.set('typePhotos', tpCache); }, 2000);
+  const fromII = (p, ii) => {
+    const em = ii.extmetadata || {}, v = k => U.text(em[k] && em[k].value);
+    return { src: ii.thumburl || ii.url, link: ii.descriptionurl, by: U.truncate(v('Artist') || 'unknown photographer', 60), license: v('LicenseShortName') || 'see file page', site: 'Wikimedia Commons' };
+  };
+  async function commonsSearch(q) {
+    const d = await U.fetchJSON(COMMONS + '&generator=search&gsrnamespace=6&gsrlimit=20&gsrsearch=' + encodeURIComponent(q + ' filetype:bitmap') + II, { timeout: 9000 });
+    const list = Object.values((d.query && d.query.pages) || {}).map(p => ({ p, ii: p.imageinfo && p.imageinfo[0] }))
+      .filter(({ p, ii }) => ii && /image\/(jpeg|png|webp)/.test(ii.mime || '') && ii.width >= 900 && ii.width / ii.height > 1.2 && ii.width / ii.height < 2.6 && !NOT_EXTERIOR.test(p.title));
+    list.sort((a, b) => (NICE.test(b.p.title) - NICE.test(a.p.title)) || ((a.p.index || 0) - (b.p.index || 0)));
+    return list[0] ? fromII(list[0].p, list[0].ii) : null;
+  }
+  async function wikiLead(title) {
+    const w = await U.fetchJSON('https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&redirects=1&prop=pageimages&piprop=name&titles=' + encodeURIComponent(title), { timeout: 9000 });
+    const pg = Object.values((w.query && w.query.pages) || {})[0];
+    if (!pg || !pg.pageimage) return null;
+    const d = await U.fetchJSON(COMMONS + '&titles=' + encodeURIComponent('File:' + pg.pageimage) + II, { timeout: 9000 });
+    const p = Object.values((d.query && d.query.pages) || {})[0], ii = p && p.imageinfo && p.imageinfo[0];
+    return ii && /image\/(jpeg|png|webp)/.test(ii.mime || '') ? fromII(p, ii) : null;
+  }
+  const cleanAirline = n => (n || '').replace(/\s*\(.*\)\s*$/, '').trim();
+  function photoPlan(a) {
+    const info = a.info || {}, acf = info.aircraft || {}, route = info.route || {};
+    const code = (a.type || acf.icao || '').toUpperCase();
+    const reg = (acf.reg || a.reg || '').toUpperCase();
+    const m = /^([A-Z]{3})\d/.exec(a.cs || '');
+    const airline = cleanAirline(route.airline || (m && AL[m[1]] && AL[m[1]][0]) || '');
+    const plan = [];
+    if (reg && !a.sim) plan.push({ scope: 'reg', key: 'reg:' + reg, reg, run: () => commonsSearch(`"${reg}"`) });
+    if (airline && PQ[code]) plan.push({ scope: 'airline', key: `al:${airline}|${code}`, airline, run: () => commonsSearch(`"${airline}" "${PQ[code]}"`) });
+    const art = WK[code];
+    if (art) plan.push({ scope: 'type', key: 'ty:' + art, article: art, run: () => wikiLead(art) });
+    return plan;
+  }
+  const stale = c => !c || (!c.src && Date.now() - c.t > 3 * 864e5);
+  function resolve(plan) {
+    const id = plan.map(p => p.key).join('>');
+    if (!plan.length || tpPending.has(id) || Date.now() - (tpFail[id] || 0) < 120e3 || SS.env.cspBlocked) return;
+    tpPending.add(id);
+    (async () => {
+      for (const step of plan) {
+        let c = tpCache[step.key];
+        if (stale(c)) {
+          let r;
+          try { r = await step.run(); } catch (e) { tpFail[id] = Date.now(); break; } // offline: try again later, don't remember "none"
+          c = tpCache[step.key] = r ? { ...r, t: Date.now() } : { t: Date.now() };
+          saveTP();
+        }
+        if (c.src) break;
+      }
+      tpPending.delete(id);
+      SS.emit('flights');
+    })();
+  }
+  // Best real photo for an aircraft, or { src: null, pending } while we look (or if there's none).
+  F.realPhoto = function (a) {
+    if (!a) return { src: null };
+    const info = a.info || {};
+    if (info.photo && info.photo.src) return Object.assign({ scope: 'exact' }, info.photo);
+    if (!a.sim && !a.info && !SS.env.cspBlocked) return { src: null, pending: true }; // route + Planespotters first
+    const plan = photoPlan(a);
+    for (const step of plan) {
+      const c = tpCache[step.key];
+      if (c && c.src) return Object.assign({ scope: step.scope, reg: step.reg, airline: step.airline, article: step.article }, c);
+      if (stale(c)) { resolve(plan); return { src: null, pending: !SS.env.cspBlocked && Date.now() - (tpFail[plan.map(p => p.key).join('>')] || 0) > 120e3 }; }
+    }
+    return { src: null };
+  };
+  const an = w => (/^[AEIOU]/i.test(w || '') && !/^(uni|use|usa|eu|one)/i.test(w) ? 'an' : 'a');
+  const An = w => { const x = an(w); return x[0].toUpperCase() + x.slice(1); };
+
   // Where the picture on the flight card came from, in plain words.
-  F.photoNote = function (a, d) {
-    if (d && d.photo && d.photo.src) return { text: `Photo © ${d.photo.by || 'photographer'} · ${d.photo.site}`, link: d.photo.link };
-    const what = d && d.typeName ? `a ${d.typeName}` : 'this aircraft type';
-    if (a && a.sim) return { text: `Illustration of ${what}. Simulated flights have no real plane to photograph.` };
-    if (SS.env.cspBlocked) return { text: `Illustration of ${what}. Real photos can't load in this hosted preview.` };
-    if (a && !a.info) return { text: `Illustration of ${what} while we look for a photo…` };
-    return { text: `Illustration of ${what}. No photo of ${(d && d.reg) || 'this aircraft'} on Planespotters yet.` };
+  F.photoNote = function (a, d, view) {
+    const ph = d && d.photo, tn = (d && d.typeName) || 'plane';
+    if (view !== 'drawing' && ph && ph.src) {
+      const credit = ph.site === 'Wikimedia Commons' ? `Photo: ${ph.by} · ${ph.license} · Wikimedia Commons` : `Photo © ${ph.by || 'photographer'} · ${ph.site}`;
+      const what = ph.scope === 'exact' ? '' : ph.scope === 'reg' ? `This plane, ${ph.reg}. ` : ph.scope === 'airline' ? `${An(ph.airline)} ${ph.airline} ${tn}, not this exact plane. ` : `${An(ph.article)} ${ph.article}, not this exact plane. `;
+      return { text: what + credit, link: ph.link };
+    }
+    const base = `Drawing of ${an(tn)} ${tn}, made by this app.`;
+    if (view === 'drawing') return { text: base };
+    if (SS.env.cspBlocked) return { text: `${base} Real photos can't load in this hosted preview.` };
+    if (d && d.photoPending) return { text: `${base} Looking for a real photo…` };
+    return { text: `${base} No free photo of it turned up.` };
   };
 
   /* ── Airport geometry ─────────────────────────────── */
@@ -300,7 +403,7 @@
     for (const [hex, o] of byHex) if (o.sim && !list.includes(o)) byHex.delete(hex);
     for (const o of byHex.values()) if (o.sim) { o.trail = o.trail || []; o.trail.push([o.lat, o.lon]); if (o.trail.length > 14) o.trail.shift(); }
     F.list = Array.from(byHex.values()).filter(o => o.sim);
-    F.status = { mode: 'sim', source: 'simulation', at: now, count: F.list.length, msg: SS.env.cspBlocked ? 'Live flight data is blocked in this preview.' : 'Live feeds unreachable, so this is simulated traffic.' };
+    F.status = { mode: 'sim', source: 'simulation', at: now, count: F.list.length, msg: SS.env.cspBlocked ? 'Live flight data is blocked in this preview.' : (SS.server.available ? 'The live feeds aren\'t answering right now.' : 'This browser can\'t reach the live feeds directly. Add the free Cloudflare Worker (Settings → Sync & devices) for real flights.') };
   }
 
   async function tick() {
@@ -398,6 +501,8 @@
     SS.emit('flights');
   }
 
+  F.enrich = a => { if (a && !a.sim && !a.info) enrich(a); };
+
   /* ── Presentation ── */
   F.describe = function (a) {
     const info = a.info || {}, route = info.route || {}, acf = info.aircraft || {};
@@ -414,9 +519,10 @@
     let distFlown = null;
     if (origin && origin.lat == null && AP[origin.iata]) { origin = { ...origin, lat: AP[origin.iata][1], lon: AP[origin.iata][2] }; }
     if (origin && origin.lat != null) { const apt = F.airport(); distFlown = G.dist(origin.lat, origin.lon, apt.lat, apt.lon) * 1.15078; }
+    const rp = F.realPhoto(a);
     return {
       flightNo, airline: route.airline || (al && al[0]) || acf.owner || '', origin, dest: route.dest, typeName, kind, seats,
-      fact: (t && t[4]) || '', reg: acf.reg || a.reg || '', owner: acf.owner || '', photo: info.photo || null, distFlownMi: distFlown, sim: !!a.sim,
+      fact: (t && t[4]) || '', reg: acf.reg || a.reg || '', owner: acf.owner || '', photo: rp.src ? rp : null, photoPending: !!rp.pending, distFlownMi: distFlown, sim: !!a.sim,
     };
   };
 

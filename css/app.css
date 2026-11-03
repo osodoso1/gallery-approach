@@ -127,7 +127,6 @@ a { color: inherit; }
 
 #caption { position: absolute; left: calc(var(--safe-l) + 3.4vw); bottom: calc(var(--safe-b) + var(--strip-h) + 30px); max-width: min(44vw, 620px); text-decoration: none; opacity: 0; transform: translateY(10px); transition: opacity 1.1s var(--ease), transform 1.1s var(--ease); pointer-events: auto; text-shadow: 0 1px 18px rgba(0,0,0,.45); }
 #caption.on { opacity: 1; transform: none; }
-body.no-strip #caption { bottom: calc(var(--safe-b) + 4vh); }
 .cap-src { display: flex; align-items: center; gap: 9px; font: 600 10.5px/1 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--muted); }
 .cap-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, #fff); box-shadow: 0 0 12px var(--c, #fff); flex: none; }
 .cap-lic { color: var(--faint); letter-spacing: .1em; }
@@ -143,6 +142,16 @@ body.awake .cap-open { opacity: .7; }
 /* Flight strip — slim, translucent, always secondary to the art */
 #flightStrip { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 14px); transform: translateX(-50%); width: min(940px, calc(100vw - 28px)); height: var(--strip-h); display: flex; align-items: center; gap: 13px; padding: 6px 7px 6px 6px; border-radius: 16px; background: rgba(12, 14, 18, .30); border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(16px) saturate(130%); -webkit-backdrop-filter: blur(16px) saturate(130%); pointer-events: auto; cursor: pointer; opacity: .9; transition: opacity .8s, width .8s var(--ease), background .8s; }
 #flightStrip.quiet { opacity: .55; width: min(560px, calc(100vw - 28px)); }
+body.strip-tab #flightStrip { animation: stripIn .5s var(--ease); }
+@keyframes stripIn { from { opacity: 0; transform: translate(-50%, 16px); } }
+.fs-hide { width: 30px; height: 30px; flex: none; border: 0; border-radius: 50%; background: rgba(255,255,255,.06); display: grid; place-items: center; cursor: pointer; color: var(--muted); margin-left: -4px; }
+.fs-hide svg { width: 16px; height: 16px; }
+/* The radar, tucked away: a small pill you tap to bring the strip up */
+#stripTab { position: absolute; right: calc(var(--safe-r) + 14px); bottom: calc(var(--safe-b) + 14px); height: 30px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px 0 9px; border-radius: 999px; border: 1px solid rgba(255,255,255,.08); background: rgba(12,14,18,.28); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color: var(--text); font: 600 11.5px/1 var(--mono); letter-spacing: .03em; pointer-events: auto; cursor: pointer; opacity: .72; transition: opacity .8s; animation: fadein .6s; }
+#stripTab:hover { opacity: 1; }
+#stripTab svg { width: 14px; height: 14px; fill: var(--amber); stroke: none; }
+#stripTab.sim svg { fill: var(--cyan); }
+#stripTab .st-t { color: var(--muted); font-weight: 500; }
 #flightStrip:hover { opacity: 1; }
 .fs-photo { position: relative; width: 74px; height: 46px; border-radius: 10px; overflow: hidden; background: linear-gradient(135deg, #1b2027, #0f1216); flex: none; display: grid; place-items: center; }
 .fs-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -165,12 +174,18 @@ svg.plane-art { stroke: none; display: block; }
 .flap-ch.flip { animation: flap .09s linear; }
 @keyframes flap { 0% { transform: scaleY(1); } 50% { transform: scaleY(.1); } 100% { transform: scaleY(1); } }
 
-#flightCard { position: fixed; z-index: 12; right: calc(var(--safe-r) + max(14px, (100vw - 940px) / 2)); bottom: calc(var(--safe-b) + var(--strip-h) + 26px); width: min(430px, calc(100vw - 28px)); border-radius: 20px; background: var(--glass-strong); border: 1px solid var(--hair-2); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.5); animation: rise .45s var(--ease); }
+#flightCard { position: fixed; z-index: 12; right: calc(var(--safe-r) + max(14px, (100vw - 940px) / 2)); bottom: calc(var(--safe-b) + var(--strip-h) + 26px); width: min(430px, calc(100vw - 28px)); border-radius: 20px; background: var(--glass-strong); border: 1px solid var(--hair-2); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); overflow-x: hidden; overflow-y: auto; max-height: calc(100vh - var(--safe-t) - var(--strip-h) - 50px); overscroll-behavior: contain; box-shadow: 0 30px 80px rgba(0,0,0,.5); animation: rise .45s var(--ease); }
 @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
 .fc-photo { position: relative; aspect-ratio: 16 / 9; background: linear-gradient(135deg, #1b2027, #0d1014); display: grid; place-items: center; }
 .fc-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .fc-photo svg.plane-art { position: absolute; inset: 0; width: 100%; height: 100%; }
 .fc-credit { position: absolute; left: 10px; right: 10px; bottom: 8px; width: fit-content; max-width: calc(100% - 20px); font: 500 10.5px/1.35 var(--sans); color: rgba(255,255,255,.92); background: rgba(0,0,0,.55); padding: 4px 9px; border-radius: 10px; text-decoration: none; z-index: 1; }
+#flightCard.top { z-index: 38; }
+.fc-view { position: absolute; top: 10px; left: 10px; z-index: 2; background: rgba(0,0,0,.45); border-color: rgba(255,255,255,.12); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.fc-view button { padding: 4px 10px; font-size: 11px; }
+.fc-look { display: flex; align-items: center; gap: 7px; margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+.fc-look svg { width: 15px; height: 15px; flex: none; color: var(--amber); }
+.fc-look b { color: var(--text); font-weight: 600; }
 .fc-body { padding: 16px 18px 18px; }
 .fc-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .fc-flight { font: 600 22px/1 var(--mono); letter-spacing: .04em; }
@@ -199,6 +214,9 @@ body.awake #hud { opacity: 1; transform: translate(-50%, 0); pointer-events: aut
 #hud button:hover, #hud button:focus-visible { background: rgba(255,255,255,.1); outline: none; }
 #hud button svg { width: 20px; height: 20px; }
 #hud .i-play { display: none; }
+#hud .hud-clock .slash { display: none; }
+#hud .hud-clock.off { color: var(--faint); }
+#hud .hud-clock.off .slash { display: inline; }
 body.paused #hud .i-play { display: block; }
 body.paused #hud .i-pause { display: none; }
 .hud-sep { width: 1px; height: 22px; background: var(--hair-2); margin: 0 6px; }
@@ -360,6 +378,16 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 
 .rb-row span { font-size: 11.5px; color: var(--muted); }
 .rb-row .r { text-align: right; font: 500 11.5px var(--mono); color: var(--muted); }
 .rb-close { position: absolute; top: 18px; left: 18px; z-index: 2; }
+.rb-compass { position: absolute; top: 18px; right: 18px; z-index: 2; background: rgba(0,0,0,.4); }
+.rb-compass.on { background: var(--amber); color: #1a1205; border-color: transparent; }
+.rb-facing { margin: -4px 0 16px; display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 14px; border-radius: 16px; background: rgba(8,9,12,.82); border: 1px solid var(--hair-2); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.rf-main { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.rf-main b { font: 600 14px var(--mono); color: var(--amber); }
+.rf-h { width: 100%; font: 650 9.5px var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+.rf-main .btn { margin-left: auto; }
+.rf-trim { display: flex; flex-direction: column; gap: 2px; }
+.rf-trim .icon-btn { width: 26px; height: 22px; border-radius: 8px; }
+.rf-trim .icon-btn svg { width: 13px; height: 13px; }
 
 /* ───────── Game ───────── */
 #game { position: fixed; inset: 0; z-index: 50; background: #04121b; touch-action: none; user-select: none; }
@@ -381,6 +409,15 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 
 .gm-card .hero b { font: 600 17px var(--mono); display: block; }
 .gm-card .hero span { font-size: 12px; color: var(--muted); }
 .gm-card .btns { display: flex; gap: 10px; justify-content: center; }
+
+/* ───────── Calm: after a while only the art (and the clock) stays ───────── */
+#wx, #clkNext, .scrim-bottom, .scrim-top, #panelTab { transition: opacity 1.4s var(--ease), transform .4s var(--ease); }
+body.calm #wx, body.calm #clkNext, body.calm #flightStrip, body.calm #stripTab, body.calm #caption:not(.peek) { opacity: 0 !important; pointer-events: none !important; transition: opacity 1.6s var(--ease); }
+body.calm:not(.cap-peek) .scrim-bottom { opacity: 0; }
+body.no-clock.calm .scrim-top { opacity: 0; }
+body.calm #caption.peek { pointer-events: auto; }
+body.no-strip #caption { bottom: calc(var(--safe-b) + 4vh); }
+body.no-strip.strip-tab #caption { bottom: calc(var(--safe-b) + 58px); }
 
 /* ───────── Responsive ───────── */
 @media (max-width: 760px) {
@@ -407,6 +444,15 @@ input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 
   #banner { top: calc(var(--safe-t) + 30vh); left: 14px; right: 14px; max-width: none; }
   .fs-l1 { gap: 7px; }
   #flightCard { right: 14px; }
+  body.strip-tab:not(.no-strip) #flightCard { bottom: calc(var(--safe-b) + var(--strip-h) + 26px); }
+  body.no-strip #flightCard { bottom: calc(var(--safe-b) + 54px); max-height: calc(100vh - var(--safe-t) - 80px); overflow-y: auto; }
+  .rb-scope { padding: 12px; }
+  .rb-close { top: 12px; left: 12px; } .rb-compass { top: 12px; right: 12px; }
+  .rb-facing { margin: -6px 0 12px; }
+  #flightStrip { gap: 9px; }
+  .fs-photo { width: 62px; height: 42px; }
+  .fs-radar { width: 40px; height: 40px; }
+  .fs-hide { width: 26px; height: 26px; margin-left: -3px; }
 }
 @media (orientation: portrait) {
   .clk-time { font-size: clamp(44px, 13vw, 110px); }
