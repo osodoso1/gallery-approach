@@ -1,0 +1,13 @@
+name = "gallery-approach-proxy"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+# Sync storage for the to-do board, events and calendar links.
+# Create it with:  npx wrangler kv namespace create STATE   and paste the id below.
+[[kv_namespaces]]
+binding = "STATE"
+id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"
+
+[vars]
+# Optional: lock the proxy to your website, e.g. "https://osodoso1.github.io"
+ALLOW_ORIGIN = "*"

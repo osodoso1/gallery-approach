@@ -1,0 +1,9 @@
+{
+  "name": "gallery-approach-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Companion server for the Gallery Approach screensaver (no dependencies).",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

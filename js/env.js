@@ -1,0 +1,233 @@
+/* Weather · UV · Air quality (Open-Meteo, keyless) · Pollen (Open-Meteo in Europe,
+   Google Pollen API with your own free key elsewhere, e.g. the Bay Area).
+   Location: your device's position, a place you search for, or your flight-radar spot. */
+(function () {
+  'use strict';
+  const U = SS.u, h = U.h;
+  const EN = (SS.env2 = { wx: null, aq: null, pollen: null, status: {}, locNote: '' });
+
+  const WMO = {
+    0: ['Clear', 'sun'], 1: ['Mostly clear', 'sun'], 2: ['Partly cloudy', 'partly'], 3: ['Overcast', 'cloud'], 45: ['Fog', 'fog'], 48: ['Freezing fog', 'fog'],
+    51: ['Light drizzle', 'rain'], 53: ['Drizzle', 'rain'], 55: ['Heavy drizzle', 'rain'], 56: ['Freezing drizzle', 'rain'], 57: ['Freezing drizzle', 'rain'],
+    61: ['Light rain', 'rain'], 63: ['Rain', 'rain'], 65: ['Heavy rain', 'rain'], 66: ['Freezing rain', 'rain'], 67: ['Freezing rain', 'rain'],
+    71: ['Light snow', 'snow'], 73: ['Snow', 'snow'], 75: ['Heavy snow', 'snow'], 77: ['Snow grains', 'snow'], 80: ['Showers', 'rain'], 81: ['Showers', 'rain'], 82: ['Violent showers', 'rain'],
+    85: ['Snow showers', 'snow'], 86: ['Snow showers', 'snow'], 95: ['Thunderstorm', 'storm'], 96: ['Thunderstorm, hail', 'storm'], 99: ['Thunderstorm, hail', 'storm'],
+  };
+  const ICON = {
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
+    partly: '<path d="M8 3v1.5M3.5 8H5M4.8 4.8l1 1M12 6.5a4 4 0 0 0-6.9 2.7"/><path d="M7 19h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 19z"/>',
+    cloud: '<path d="M7 19h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 19z"/>',
+    fog: '<path d="M4 10h16M3 14h18M5 18h14M7 6h10"/>',
+    rain: '<path d="M7 15h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 15z"/><path d="M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/>',
+    snow: '<path d="M7 15h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 15z"/><path d="M9 19h.01M13 19h.01M17 19h.01M11 21.5h.01M15 21.5h.01"/>',
+    storm: '<path d="M7 15h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 15z"/><path d="M12 14l-2 4h3l-2 4"/>',
+    chevron: '<path d="M6 9l6 6 6-6"/>',
+  };
+  EN.uvCat = v => (v == null ? null : v < 3 ? ['Low', '#7ee0a1'] : v < 6 ? ['Moderate', '#f5d76e'] : v < 8 ? ['High', '#ffb547'] : v < 11 ? ['Very high', '#ff6b5e'] : ['Extreme', '#c77dff']);
+  EN.aqiCat = v => (v == null ? null : v <= 50 ? ['Good', '#7ee0a1'] : v <= 100 ? ['Moderate', '#f5d76e'] : v <= 150 ? ['Unhealthy for sensitive groups', '#ffb547'] : v <= 200 ? ['Unhealthy', '#ff6b5e'] : v <= 300 ? ['Very unhealthy', '#c77dff'] : ['Hazardous', '#a0303a']);
+  const UPI = ['None', 'Very low', 'Low', 'Moderate', 'High', 'Very high'];
+  const UPI_COL = ['#7ee0a1', '#7ee0a1', '#b9e07e', '#f5d76e', '#ffb547', '#ff6b5e'];
+  const isF = () => (SS.settings.env.units || 'F') === 'F';
+  const deg = v => (v == null ? '—' : Math.round(v) + '°');
+
+  /* ── Location ── */
+  EN.loc = function () {
+    const L = SS.settings.env.loc || {}, fl = SS.settings.flight;
+    if ((L.mode === 'device' || L.mode === 'place') && L.lat != null && L.lon != null) return { lat: L.lat, lon: L.lon, name: L.name || (L.mode === 'device' ? 'My location' : 'Chosen place'), mode: L.mode };
+    return { lat: fl.lat, lon: fl.lon, name: fl.place || 'Flight spot', mode: L.mode === 'device' ? 'device-pending' : 'spot' };
+  };
+  async function placeName(lat, lon) {
+    try {
+      const d = await U.fetchJSON(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, { timeout: 8000 });
+      return d.city || d.locality || d.principalSubdivision || '';
+    } catch (e) { return ''; }
+  }
+  EN.useDevice = function (fromUser) {
+    return new Promise(resolve => {
+      const why = !window.isSecureContext ? "this page isn't on HTTPS, so the browser won't share location" : !navigator.geolocation ? "this browser doesn't offer location" : '';
+      if (why) { EN.locNote = `Can't use your location: ${why}. Search for a place instead.`; render(); return resolve(false); }
+      navigator.geolocation.getCurrentPosition(async p => {
+        const lat = +p.coords.latitude.toFixed(3), lon = +p.coords.longitude.toFixed(3);
+        const old = SS.settings.env.loc || {};
+        const moved = old.lat == null || Math.abs(old.lat - lat) > 0.02 || Math.abs(old.lon - lon) > 0.02;
+        const name = moved || !old.name ? (await placeName(lat, lon)) || 'My location' : old.name;
+        SS.setSetting('env.loc', { mode: 'device', lat, lon, name });
+        EN.locNote = '';
+        resolve(true);
+      }, err => {
+        EN.locNote = (SS.env.cspBlocked || window.claude) ? 'The claude.ai preview can\'t ask for your location. The website and Pi versions can.' : err && err.code === 1 ? 'Location permission was declined. You can allow it in your browser settings, or search for a place.' : 'Couldn\'t get your location right now.';
+        if (fromUser) U.toast(EN.locNote, 5000);
+        render(); resolve(false);
+      }, { timeout: 12000, maximumAge: 30 * 60e3 });
+    });
+  };
+  EN.search = async function (q) {
+    const d = await U.fetchJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`, { timeout: 8000 });
+    return (d.results || []).map(r => ({ name: [r.name, r.admin1, r.country_code].filter(Boolean).join(', '), short: r.name, lat: r.latitude, lon: r.longitude }));
+  };
+
+  /* ── Data ── */
+  async function loadWeather() {
+    const { lat, lon } = EN.loc();
+    const d = await U.fetchJSON(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,uv_index&daily=temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset,precipitation_probability_max&temperature_unit=${isF() ? 'fahrenheit' : 'celsius'}&wind_speed_unit=${isF() ? 'mph' : 'kmh'}&timezone=auto&forecast_days=1`, { timeout: 12000 });
+    const c = d.current || {}, dy = d.daily || {};
+    EN.wx = {
+      t: c.temperature_2m, feels: c.apparent_temperature, rh: c.relative_humidity_2m, code: c.weather_code, day: c.is_day, wind: c.wind_speed_10m, uv: c.uv_index,
+      hi: dy.temperature_2m_max && dy.temperature_2m_max[0], lo: dy.temperature_2m_min && dy.temperature_2m_min[0], uvMax: dy.uv_index_max && dy.uv_index_max[0],
+      rain: dy.precipitation_probability_max && dy.precipitation_probability_max[0], sunrise: dy.sunrise && dy.sunrise[0], sunset: dy.sunset && dy.sunset[0], at: Date.now(),
+    };
+    EN.status.wx = 'ok';
+  }
+  async function loadAir() {
+    const { lat, lon } = EN.loc();
+    const d = await U.fetchJSON(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10,ozone,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto`, { timeout: 12000 });
+    const c = d.current || {};
+    EN.aq = { aqi: c.us_aqi, pm25: c.pm2_5, pm10: c.pm10, o3: c.ozone, at: Date.now() };
+    EN.status.aq = c.us_aqi != null ? 'ok' : 'no data here';
+    const sp = { Alder: c.alder_pollen, Birch: c.birch_pollen, Grass: c.grass_pollen, Mugwort: c.mugwort_pollen, Olive: c.olive_pollen, Ragweed: c.ragweed_pollen };
+    const vals = Object.entries(sp).filter(([, v]) => v != null);
+    if (vals.length && !SS.settings.env.pollenKey) {
+      const lvl = v => (v < 1 ? 0 : v < 10 ? 2 : v < 50 ? 3 : v < 200 ? 4 : 5);
+      EN.pollen = { src: 'Open-Meteo (CAMS Europe)', types: vals.map(([n, v]) => ({ name: n, value: lvl(v) })), at: Date.now() };
+      EN.status.pollen = 'ok';
+    }
+  }
+  async function loadPollen() {
+    const key = SS.settings.env.pollenKey;
+    if (!key) { if (!EN.pollen) EN.status.pollen = 'nokey'; return; }
+    const { lat, lon } = EN.loc();
+    const d = await U.fetchJSON(`https://pollen.googleapis.com/v1/forecast:lookup?key=${encodeURIComponent(key)}&location.latitude=${lat}&location.longitude=${lon}&days=1&plantsDescription=false`, { timeout: 12000 });
+    const day = d.dailyInfo && d.dailyInfo[0];
+    EN.pollen = { src: 'Google Pollen API', types: ((day && day.pollenTypeInfo) || []).map(p => ({ name: p.displayName || p.code, value: p.indexInfo ? p.indexInfo.value : 0, inSeason: p.inSeason })), at: Date.now() };
+    EN.status.pollen = 'ok';
+  }
+  async function refresh(which) {
+    if (!SS.settings.env.enabled) { render(); return; }
+    const jobs = { wx: loadWeather, aq: loadAir, pollen: loadPollen };
+    await Promise.all((which || Object.keys(jobs)).map(k => jobs[k]().catch(e => {
+      EN.status[k] = SS.env.cspBlocked ? "blocked in the claude.ai preview" : (e && e.status === 403 ? 'key not accepted' : (e && e.message) || 'unavailable');
+    })));
+    render();
+  }
+  EN.refresh = refresh;
+
+  /* ── Under-the-clock drop-down ── */
+  let host;
+  EN.init = function () {
+    host = U.$('#wx');
+    const L = SS.settings.env.loc || {};
+    if (L.mode === 'device') {
+      // refresh the position quietly if the browser already allows it; otherwise ask once
+      const ask = () => EN.useDevice(false).then(ok => ok && refresh());
+      if (navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: 'geolocation' }).then(p => { if (p.state !== 'denied') ask(); else { EN.locNote = 'Location permission is off for this site.'; render(); } }).catch(ask);
+      else ask();
+    }
+    refresh();
+    setInterval(() => refresh(['wx']), 15 * 60e3);
+    setInterval(() => refresh(['aq']), 30 * 60e3);
+    setInterval(() => refresh(['pollen']), 3 * 3600e3);
+    SS.on('settings', p => { if (p === 'cloud' || /^env\.(loc|units|pollenKey|enabled)|^flight\.(lat|lon)/.test(p || '')) refresh(); else if (/^env/.test(p || '')) render(); });
+  };
+
+  function chip(label, value, color) { return h('span', { class: 'wx-chip' }, h('i', { style: { background: color } }), h('em', null, label), value); }
+  function summaryChips() {
+    const out = [], w = EN.wx;
+    if (!w) return out;
+    const uv = w.uv != null ? w.uv : w.uvMax, uc = EN.uvCat(uv);
+    if (uc) out.push(chip('UV', `${Math.round(uv)} ${uc[0]}`, uc[1]));
+    const a = EN.aq && EN.aq.aqi, ac = EN.aqiCat(a);
+    if (ac) out.push(chip('AQI', `${Math.round(a)} ${ac[0].replace('Unhealthy for sensitive groups', 'Sensitive')}`, ac[1]));
+    if (EN.pollen && EN.pollen.types.length) { const top = EN.pollen.types.slice().sort((x, y) => y.value - x.value)[0]; out.push(chip('Pollen', `${top.name} ${UPI[top.value] || ''}`, UPI_COL[top.value] || '#7ee0a1')); }
+    else out.push(chip('Pollen', SS.settings.env.pollenKey ? '—' : 'add key', '#6c7588'));
+    return out;
+  }
+  function details(compact) {
+    const w = EN.wx, row = (k, v) => h('div', { class: 'ec-row' }, h('span', null, k), h('b', null, v));
+    const t = s => (s ? U.fmt.time(new Date(s), SS.settings.clock24) : '—');
+    const box = h('div', { class: 'wx-body' });
+    const L = EN.loc();
+    if (w) {
+      const uvc = EN.uvCat(w.uvMax), ac = EN.aq && EN.aqiCat(EN.aq.aqi);
+      box.append(
+        row('Feels like', deg(w.feels)), row('High / low', `${deg(w.hi)} / ${deg(w.lo)}`), row('Chance of rain', w.rain != null ? w.rain + '%' : '—'),
+        row('Humidity · wind', `${w.rh != null ? Math.round(w.rh) + '%' : '—'} · ${w.wind != null ? Math.round(w.wind) + (isF() ? ' mph' : ' km/h') : '—'}`),
+        row('UV now · today\'s max', `${w.uv != null ? Math.round(w.uv) : '—'} · ${w.uvMax != null ? Math.round(w.uvMax) : '—'}${uvc ? ' (' + uvc[0] + ')' : ''}`),
+        EN.aq && EN.aq.aqi != null ? row('Air quality (US AQI)', `${Math.round(EN.aq.aqi)}${ac ? ' · ' + ac[0] : ''}`) : row('Air quality', EN.status.aq || '—'),
+        EN.aq && EN.aq.pm25 != null ? row('PM2.5 · ozone', `${EN.aq.pm25.toFixed(1)} · ${EN.aq.o3 != null ? Math.round(EN.aq.o3) : '—'} µg/m³`) : '',
+        ...(EN.pollen && EN.pollen.types.length ? EN.pollen.types.map(p => row(`Pollen · ${p.name}`, `${UPI[p.value] || '—'}${p.inSeason === false ? ' (out of season)' : ''}`)) : [row('Pollen', SS.settings.env.pollenKey ? (EN.status.pollen || 'loading…') : 'Needs a free Google Pollen key (Settings → Weather)')]),
+        row('Sunrise · sunset', `${t(w.sunrise)} · ${t(w.sunset)}`));
+    } else {
+      box.append(h('p', { class: 'note' }, SS.env.cspBlocked ? "The claude.ai preview can't reach the weather service. On the website or Pi version this fills in automatically." : `Weather isn't loading (${EN.status.wx || 'connecting'}).`));
+    }
+    box.append(locationControls(compact));
+    box.append(h('div', { class: 'fc-src' }, 'Weather & air quality: ', h('a', { href: 'https://open-meteo.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Open-Meteo'), ' (model data, CC BY 4.0)', EN.pollen ? ` · Pollen: ${EN.pollen.src}` : '', '. Estimates, not a sensor at your spot.'));
+    return box;
+  }
+  function locationControls() {
+    const L = EN.loc();
+    const wrap = h('div', { class: 'wx-loc' });
+    const results = h('div', { class: 'wx-results' });
+    const input = h('input', { type: 'text', placeholder: 'Search a city or ZIP…' });
+    let tq = null;
+    input.addEventListener('input', () => {
+      clearTimeout(tq);
+      const q = input.value.trim(); if (q.length < 2) { results.innerHTML = ''; return; }
+      tq = setTimeout(async () => {
+        try {
+          const list = await EN.search(q);
+          results.innerHTML = '';
+          if (!list.length) results.append(h('div', { class: 'empty' }, 'No matches.'));
+          list.forEach(r => results.append(h('button', { class: 'wx-result', onclick: () => { SS.setSetting('env.loc', { mode: 'place', lat: r.lat, lon: r.lon, name: r.short }); EN.locNote = ''; } }, r.name)));
+        } catch (e) { results.innerHTML = ''; results.append(h('div', { class: 'empty' }, SS.env.cspBlocked ? 'Search is blocked in the claude.ai preview.' : 'Search isn\'t available right now.')); }
+      }, 350);
+    });
+    wrap.append(
+      h('div', { class: 'wx-loc-h' }, U.icon('pin'), h('b', null, L.name), h('span', null, L.mode === 'device' ? ' · from your device' : L.mode === 'place' ? ' · chosen place' : L.mode === 'device-pending' ? ' · waiting for your location' : ' · your flight spot')),
+      EN.locNote ? h('div', { class: 'note' }, EN.locNote) : '',
+      h('div', { class: 'wx-loc-btns' },
+        h('button', { class: 'btn small', onclick: e => { e.stopPropagation(); EN.useDevice(true).then(ok => ok && U.toast('Using your location')); } }, U.icon('pin'), 'Use my location'),
+        h('button', { class: 'btn small ghost', onclick: e => { e.stopPropagation(); SS.setSetting('env.loc', { mode: 'spot', lat: null, lon: null, name: '' }); } }, 'Use flight spot')),
+      input, results);
+    return wrap;
+  }
+
+  function render() {
+    if (!host) return;
+    const s = SS.settings.env, show = s.enabled ? (s.show || 'compact') : 'off';
+    host.hidden = show === 'off';
+    if (host.hidden) return;
+    const keepFocus = host.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
+    if (keepFocus) return; // don't rebuild while you're typing a place
+    host.innerHTML = '';
+    const w = EN.wx, open = show === 'open';
+    const [desc, ic] = (w && WMO[w.code]) || ['', 'cloud'];
+    const icon = w && !w.day && (ic === 'sun' || ic === 'partly') ? 'moon' : ic;
+    const head = h('button', { class: 'wx-head' + (open ? ' open' : ''), 'aria-expanded': open ? 'true' : 'false', onclick: e => { e.stopPropagation(); SS.setSetting('env.show', open ? 'compact' : 'open'); } },
+      U.svg(ICON[icon]), w ? h('b', null, deg(w.t)) : h('b', null, 'Weather'), w ? h('span', null, `${desc} · H ${deg(w.hi)} L ${deg(w.lo)}`) : h('span', null, SS.env.cspBlocked ? 'not available in preview' : 'loading…'),
+      U.svg(ICON.chevron));
+    host.append(head);
+    const chips = summaryChips();
+    if (chips.length) host.append(h('div', { class: 'wx-chips', onclick: e => { e.stopPropagation(); SS.setSetting('env.show', open ? 'compact' : 'open'); } }, chips));
+    if (open) {
+      const dd = h('div', { class: 'wx-drop', onclick: e => e.stopPropagation() }, details(true),
+        h('div', { class: 'wx-loc-btns' }, h('button', { class: 'btn small ghost', onclick: () => SS.setSetting('env.show', 'compact') }, 'Collapse'), h('button', { class: 'btn small ghost', onclick: () => { SS.setSetting('env.show', 'off'); U.toast('Weather hidden. Turn it back on in the panel (Weather tab) or Settings.'); } }, 'Hide weather')));
+      host.append(dd);
+    }
+    if (SS.planner && SS.planner.tab === 'weather') SS.emit('agenda');
+  }
+  EN.render = render;
+  EN.locationControls = locationControls;
+
+  /* ── Weather tab in the side panel ── */
+  EN.renderPanel = function (body) {
+    const w = EN.wx, s = SS.settings.env;
+    const [desc, ic] = (w && WMO[w.code]) || ['', 'cloud'];
+    body.append(
+      h('div', { class: 'wx-big' }, U.svg(ICON[w && !w.day && (ic === 'sun' || ic === 'partly') ? 'moon' : ic]), h('div', null, h('b', null, w ? deg(w.t) : '—'), h('span', null, desc || (SS.env.cspBlocked ? 'Not available in the claude.ai preview' : 'Loading…')))),
+      h('div', { class: 'wx-chips left' }, summaryChips()),
+      h('div', { class: 'row' }, h('div', { class: 'lbl' }, h('b', null, 'Show under the clock'), h('small', null, 'Collapsed shows a one-line summary; tap it to drop down the details')),
+        h('div', { class: 'ctl' }, (() => { const seg = h('div', { class: 'seg' }); [['off', 'Hide'], ['compact', 'Collapsed'], ['open', 'Expanded']].forEach(([v, l]) => seg.append(h('button', { class: (s.enabled ? s.show : 'off') === v ? 'on' : '', onclick: () => { if (v !== 'off' && !s.enabled) SS.setSetting('env.enabled', true); SS.setSetting('env.show', v); SS.planner.render(); } }, l))); return seg; })())),
+      details(false));
+  };
+})();

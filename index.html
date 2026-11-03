@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gallery Approach</title>
+<meta name="description" content="A personal art screensaver with old-school slide transitions, a live SFO arrivals strip, a planner, and a hidden tower game.">
+<meta name="theme-color" content="#07080a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gallery">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="assets/icons/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icons/icon-180.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="stage">
+  <div id="slides"></div>
+  <div id="fx"></div>
+  <div class="scrim scrim-top"></div>
+  <div class="scrim scrim-bottom"></div>
+</div>
+
+<div id="overlay" class="shiftable">
+  <header id="clock" aria-live="off">
+    <div class="clk-time"><span id="clkHM">--:--</span><span id="clkAP" class="clk-ap"></span></div>
+    <div id="clkDate" class="clk-date"></div>
+    <div id="wx" class="wx" hidden></div>
+    <div id="clkNext" class="clk-next" hidden></div>
+  </header>
+  <div id="caption" role="button" tabindex="0" aria-label="About this picture"></div>
+  <section id="flightStrip" class="quiet" hidden></section>
+</div>
+
+<div id="night"></div>
+<div id="flightCard" hidden></div>
+<div id="infoCard" hidden></div>
+<div id="timerPop" hidden></div>
+
+<nav id="hud" aria-label="Controls">
+  <button data-act="prev" title="Previous (←)" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button data-act="play" title="Pause / play (space)" aria-label="Pause or play"><svg viewBox="0 0 24 24" class="i-pause"><path d="M9 5v14M15 5v14"/></svg><svg viewBox="0 0 24 24" class="i-play"><path d="M8 5l11 7-11 7z"/></svg></button>
+  <button data-act="next" title="Next (→)" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+  <button data-act="timer" class="hud-timer" title="How often the picture changes" aria-label="Picture timer"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg><span id="hudTimer">2m</span></button>
+  <span class="hud-sep"></span>
+  <button data-act="info" title="About this picture (I)" aria-label="About this picture"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+  <button data-act="fx" title="Transitions (T)" aria-label="Transitions"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="11" height="14" rx="2"/><path d="M17 7h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/></svg></button>
+  <button data-act="photos" title="My photos (P)" aria-label="My photos"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg></button>
+  <button data-act="panel" title="Calendar &amp; to-dos (C)" aria-label="Calendar and to-dos"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
+  <button data-act="radar" class="hud-wide" title="Radar (R)" aria-label="Radar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-6"/></svg></button>
+  <button data-act="settings" title="Settings (S)" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  <button data-act="full" class="hud-wide" title="Full screen (F)" aria-label="Full screen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  <span id="hudLabel" class="hud-label"></span>
+</nav>
+
+<button id="panelTab" aria-label="Open calendar and to-dos"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+<aside id="panel" aria-label="Calendar and to-dos"></aside>
+<div id="radarBig" hidden></div>
+<div id="sheet" hidden></div>
+<div id="game" hidden></div>
+<div id="toasts"></div>
+<div id="banner" hidden></div>
+<div id="boot"><div class="boot-mark">Gallery <em>Approach</em></div><div class="boot-sub">hanging the first picture…</div></div>
+<input id="filePick" type="file" accept="image/*" multiple hidden>
+<input id="folderPick" type="file" accept="image/*" multiple webkitdirectory hidden>
+
+<script src="js/core.js"></script>
+<script src="js/cloud.js"></script>
+<script src="js/gen.js"></script>
+<script src="js/photos.js"></script>
+<script src="js/sources.js"></script>
+<script src="js/compose.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/show.js"></script>
+<script src="js/flights.js"></script>
+<script src="js/radar.js"></script>
+<script src="js/game.js"></script>
+<script src="js/planner.js"></script>
+<script src="js/env.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
