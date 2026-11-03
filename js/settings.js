@@ -113,7 +113,7 @@
     return h('span', { class: 'badge ok' }, `ready · ${(SS.pool.queues[id] || []).length} queued`);
   }
   function sources(m) {
-    m.append(h('h2', null, 'Art & photo sources'), h('p', { class: 'lead' }, 'Every picture shows where it came from and its licence. Turn a source up, down or off.'));
+    m.append(h('h2', null, 'Art & photo sources'), h('p', { class: 'lead' }, 'Every picture shows where it came from and its licence. Turn a source up, down or off. Each source keeps a few pictures lined up (just their details; images download right before they show) and tops up as it goes. Searches jump to a random page anywhere in the results, so over time the whole open collection comes round, not just the top hits.'));
     if (SS.env.cspBlocked) m.append(h('p', { class: 'note' }, 'This hosted preview blocks outside connections, so the museums can\'t load here. Run it from a Pi or computer (see About) and they all switch on.'));
     const groups = [['art', 'Museums (open-access works of art)'], ['photo', 'Photography'], ['space', 'Space'], ['gen', 'Offline']];
     for (const [grp, label] of groups) {
@@ -121,7 +121,7 @@
       SS.providerOrder.filter(id => SS.providers[id].group === grp).forEach(id => {
         const p = SS.providers[id];
         m.append(h('div', { class: 'row src-row' },
-          h('div', { class: 'lbl' }, h('span', { class: 'cap-dot', style: { '--c': p.color } }), h('div', null, h('b', null, p.name, p.beta ? h('span', { class: 'badge' }, 'beta') : '', badge(id)), h('small', null, p.sub, ' · ', link(p.home || '#', 'about')))),
+          h('div', { class: 'lbl' }, h('span', { class: 'cap-dot', style: { '--c': p.color } }), h('div', null, h('b', null, p.name, p.beta ? h('span', { class: 'badge' }, 'beta') : '', badge(id)), h('small', null, p.sub, SS.pool.reach[id] && SS.pool.reach[id].n ? ` · last search: ${U.fmt.int(SS.pool.reach[id].n)} works, picked from anywhere in them` : '', ' · ', link(p.home || '#', 'about')))),
           h('div', { class: 'ctl' }, seg('weights.' + id, id === 'generative' ? [[-1, 'Off'], [0, 'Only if nothing loads'], [1, 'Now and then'], [2, 'Often']] : [[0, 'Off'], [1, 'Low'], [2, 'Normal'], [3, 'High']], () => (id === 'generative' ? SS.pool.genChanged() : SS.pool.warm())))));
         if (id === 'harvard') m.append(row('Harvard API key', 'Free from harvardartmuseums.org/collections/api', text('harvardKey', 'paste key', 'password', 220, () => { SS.pool.cooldown.harvard = 0; SS.pool.warm(); })));
       });

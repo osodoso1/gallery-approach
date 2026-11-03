@@ -93,6 +93,8 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 | Your photos | This device and/or `photos/` | yours | — |
 | Generative studies | Made on the device | yours | can be turned off |
 
+Each source keeps a few pictures lined up (just their details; the image downloads right before it shows) and tops up as it goes. Searches ask how many results there are, then jump to a random page anywhere in them (within the roughly 10,000-result limit these APIs allow), so over time the whole open collection comes round, not just the top hits. The Rijksmuseum is searched by famous names half the time and by random year (1500–1920) the other half. The app remembers the last 900 pictures so it doesn't repeat itself.
+
 Google Arts & Culture has no public API, so it can't be included automatically. Spotlight and Bing use the same public endpoints as [Spotlight-Downloader](https://github.com/ORelio/Spotlight-Downloader) and [SpotlightGallery](https://github.com/Qzincs/SpotlightGallery). The server saves each image to `data/cache/` so your pool grows over time.
 
 ## Flights

@@ -10,7 +10,39 @@
 
   const big = () => Math.max(innerWidth, innerHeight) * Math.min(devicePixelRatio || 1, 2) > 1700;
   const paintings = () => SS.settings.artFocus === 'paintings';
-  const TERMS = ['landscape', 'sea', 'river', 'garden', 'flowers', 'night', 'winter', 'harbor', 'mountain', 'city', 'sunset', 'forest', 'still life', 'boats', 'moon', 'bridge', 'snow', 'evening', 'clouds', 'birds', 'lake', 'coast', 'trees', 'street'];
+  const TERMS = ['landscape', 'sea', 'river', 'garden', 'flowers', 'night', 'winter', 'harbor', 'mountain', 'city', 'sunset', 'forest', 'still life', 'boats', 'moon', 'bridge', 'snow', 'evening', 'clouds', 'birds', 'lake', 'coast', 'trees', 'street',
+    'portrait', 'woman', 'man', 'child', 'mother', 'horse', 'dog', 'cat', 'deer', 'tiger', 'fish', 'butterfly', 'fruit', 'music', 'dance', 'reading', 'letter', 'interior', 'window',
+    'church', 'castle', 'village', 'farm', 'fields', 'harvest', 'shepherd', 'storm', 'ship', 'waterfall', 'valley', 'rain', 'morning', 'autumn', 'spring', 'summer', 'sun', 'stars',
+    'waves', 'beach', 'cliff', 'road', 'canal', 'market', 'festival', 'picnic', 'angel', 'mythology', 'hunt', 'travelers', 'ruins', 'temple', 'pagoda', 'bamboo', 'blossom',
+    'Venice', 'Paris', 'Rome', 'London', 'Japan', 'Holland', 'tea', 'kimono', 'skaters', 'fisherman', 'lighthouse', 'mill', 'cottage', 'roses', 'lilies', 'peonies', 'orchard', 'meadow'];
+
+  /* Reach the whole collection, not just the top results: remember how many results each search has
+     (from the first page we read), then jump to a random page anywhere in them next time.
+     Public search APIs stop paging at about 10,000 results, so pages are kept inside that. */
+  const TOT = U.store.get('srcTotals', {});
+  const saveTot = U.debounce(() => { const k = Object.keys(TOT); k.slice(0, Math.max(0, k.length - 500)).forEach(x => delete TOT[x]); U.store.set('srcTotals', TOT); }, 3000);
+  const fresh = t => t && Date.now() - t.at < 7 * 864e5;
+  async function deepFetch(key, size, url, total, items) {
+    let t = TOT[key];
+    if (!fresh(t)) {   // first time for this search: ask for one result just to learn how many there are
+      try { const n = total(await U.fetchJSON(url(1, 1))); if (typeof n === 'number' && isFinite(n)) { t = TOT[key] = Object.assign({}, t, { n, at: Date.now() }); saveTot(); } }
+      catch (e) { /* fall back to the first page */ }
+    }
+    const pages = fresh(t) ? Math.max(1, Math.floor(Math.min(t.n, t.cap || 10000) / size)) : 1;
+    const pg = U.randInt(1, pages);
+    let d;
+    try { d = await U.fetchJSON(url(pg, size)); }
+    catch (e) {
+      if (pg === 1 || !(e.status >= 400 && e.status < 500)) throw e;
+      TOT[key] = Object.assign({}, t, { cap: (pg - 1) * size }); saveTot();   // went past what the API allows: stay below it
+      d = await U.fetchJSON(url(1, size));
+    }
+    const n = total(d);
+    if (typeof n === 'number' && isFinite(n)) { TOT[key] = Object.assign({}, TOT[key], { n, at: Date.now() }); saveTot(); }
+    if (pg > 1 && !(items(d) || []).length) { delete TOT[key]; saveTot(); }       // collection shrank: re-count next time
+    SS.pool.reach[key.split('|')[0]] = { pages, n: TOT[key] && TOT[key].n };
+    return d;
+  }
   const cleanMaker = s => (s || '').replace(/\s*\((?:[^()]|\([^()]*\))*\)\s*$/, '').trim();
 
   /* ── Museums ─────────────────────────────────────────── */
@@ -37,8 +69,10 @@
   def({
     id: 'aic', name: 'Art Institute of Chicago', short: 'AIC', sub: 'Public domain · CC0', color: '#c2362b', group: 'art', home: 'https://api.artic.edu/docs/',
     async fetchBatch() {
-      const q = U.pick(TERMS);
-      const d = await U.fetchJSON(`https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(q)}&query[term][is_public_domain]=true&fields=id,title,artist_title,artist_display,date_display,image_id,thumbnail,credit_line,medium_display,artwork_type_title&limit=40&page=${U.randInt(1, 4)}`);
+      // Half the time a broad search (every oil painting, every watercolour…) so the whole collection comes up.
+      const q = paintings() && Math.random() < 0.5 ? U.pick(['oil on canvas', 'oil on panel', 'watercolor', 'gouache', 'pastel', 'tempera', 'ink and color']) : U.pick(TERMS);
+      const d = await deepFetch(`aic|${q}`, 40, (pg, n) => `https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(q)}&query[term][is_public_domain]=true&fields=id,title,artist_title,artist_display,date_display,image_id,thumbnail,credit_line,medium_display,artwork_type_title&limit=${n}&page=${pg}`,
+        j => j.pagination && j.pagination.total, j => j.data);
       const base = (d.config && d.config.iiif_url) || 'https://www.artic.edu/iiif/2';
       return (d.data || []).filter(a => a.image_id && (!paintings() || /paint|print|drawing|watercolor/i.test(a.artwork_type_title || '')))
         .map(a => ({
@@ -54,7 +88,8 @@
     id: 'cleveland', name: 'Cleveland Museum of Art', short: 'CMA', sub: 'Open Access · CC0', color: '#3d7be0', group: 'art', home: 'https://openaccess-api.clevelandart.org/',
     async fetchBatch() {
       const p = paintings();
-      const d = await U.fetchJSON(`https://openaccess-api.clevelandart.org/api/artworks/?cc0=1&has_image=1&limit=30&skip=${U.randInt(0, p ? 3000 : 28000)}${p ? '&type=Painting' : ''}`);
+      const d = await deepFetch(`cleveland|${p}`, 30, (pg, n) => `https://openaccess-api.clevelandart.org/api/artworks/?cc0=1&has_image=1&limit=${n}&skip=${(pg - 1) * n}${p ? '&type=Painting' : ''}`,
+        j => j.info && j.info.total, j => j.data);
       return (d.data || []).filter(a => a.images && (a.images.web || a.images.print)).map(a => ({
         key: 'cma:' + a.id, src: 'cleveland', kind: 'art',
         urls: big() ? [a.images.print && a.images.print.url, a.images.web && a.images.web.url] : [a.images.web && a.images.web.url, a.images.print && a.images.print.url],
@@ -69,8 +104,9 @@
     async fetchBatch() {
       const p = paintings();
       const f = v => 'filters=' + encodeURIComponent(v);
-      const url = `https://api.smk.dk/api/v1/art/search/?keys=${encodeURIComponent(p ? '*' : U.pick(TERMS))}&${f('[has_image:true]')}&${f('[public_domain:true]')}${p ? '&' + f('[object_names:maleri]') : ''}&offset=${U.randInt(0, p ? 1400 : 600)}&rows=30&lang=en`;
-      const d = await U.fetchJSON(url);
+      const keys = p ? '*' : U.pick(TERMS);
+      const d = await deepFetch(`smk|${keys}|${p}`, 30, (pg, n) => `https://api.smk.dk/api/v1/art/search/?keys=${encodeURIComponent(keys)}&${f('[has_image:true]')}&${f('[public_domain:true]')}${p ? '&' + f('[object_names:maleri]') : ''}&offset=${(pg - 1) * n}&rows=${n}&lang=en`,
+        j => j.found, j => j.items);
       return (d.items || []).filter(a => a.image_thumbnail || a.image_native).map(a => {
         const iiif = a.image_iiif_id ? `${a.image_iiif_id}/full/!2048,2048/0/default.jpg` : null;
         const bigger = a.image_thumbnail ? a.image_thumbnail.replace(/\/full\/[^/]+\//, '/full/!2048,2048/') : null;
@@ -112,6 +148,11 @@
     const names = (obj.identified_by || []).filter(x => x.type === 'Name' && x.content);
     const en = names.find(n => JSON.stringify(n.language || '').match(/English|300388277/)) || names[0];
     const prod = obj.produced_by || {};
+    if (!creator) {   // found by year: read the maker from the record itself
+      const makers = (prod.carried_out_by || []).concat(...(prod.part || []).map(x => x.carried_out_by || []));
+      const m = makers[0];
+      creator = (m && (m._label || (m.identified_by && m.identified_by[0] && m.identified_by[0].content))) || '';
+    }
     const ts = prod.timespan || {};
     const dateTxt = (ts.identified_by && ts.identified_by[0] && ts.identified_by[0].content) || (ts.begin_of_the_begin || '').slice(0, 4);
     return {
@@ -123,8 +164,12 @@
   def({
     id: 'rijks', name: 'Rijksmuseum', sub: 'Public domain · Linked Art', color: '#f08a24', group: 'art', beta: true, home: 'https://data.rijksmuseum.nl/docs/',
     async fetchBatch() {
-      const creator = U.pick(RIJKS_MASTERS);
-      const s = await U.fetchJSON(`https://data.rijksmuseum.nl/search/collection?type=painting&imageAvailable=true&creator=${encodeURIComponent(creator)}`);
+      // Half the time a famous name, half the time every painting from a random year (1500–1920),
+      // which reaches the whole painting collection rather than the same 18 artists.
+      const byYear = Math.random() < 0.5;
+      const creator = byYear ? '' : U.pick(RIJKS_MASTERS);
+      const year = U.randInt(1500, 1920);
+      const s = await U.fetchJSON(`https://data.rijksmuseum.nl/search/collection?type=painting&imageAvailable=true&${byYear ? 'creationDate=' + year : 'creator=' + encodeURIComponent(creator)}`);
       const ids = U.shuffle((s.orderedItems || []).map(o => o.id).filter(Boolean)).slice(0, 5);
       const out = await Promise.allSettled(ids.map(id => rijksResolve(id, creator)));
       return out.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
@@ -135,7 +180,8 @@
     id: 'vam', name: 'V&A Museum', sub: '© V&A · personal, non-commercial', color: '#b18cf0', group: 'art', home: 'https://developers.vam.ac.uk/',
     async fetchBatch() {
       const q = paintings() ? U.pick(['painting', 'watercolour', 'oil painting', 'print', 'drawing']) + ' ' + U.pick(TERMS) : U.pick(TERMS);
-      const d = await U.fetchJSON(`https://api.vam.ac.uk/v2/objects/search?q=${encodeURIComponent(q)}&images_exist=true&page_size=40&page=${U.randInt(1, 3)}`);
+      const d = await deepFetch(`vam|${q}`, 40, (pg, n) => `https://api.vam.ac.uk/v2/objects/search?q=${encodeURIComponent(q)}&images_exist=true&page_size=${n}&page=${pg}`,
+        j => j.info && j.info.record_count, j => j.records);
       return (d.records || []).filter(r => r._primaryImageId).map(r => {
         const base = (r._images && r._images._iiif_image_base_url) || `https://framemark.vam.ac.uk/collections/${r._primaryImageId}/`;
         return {
@@ -189,12 +235,14 @@
     },
   });
 
-  const NASA_TERMS = ['nebula', 'galaxy', 'aurora', 'earth from space', 'hubble', 'webb telescope', 'saturn', 'jupiter', 'milky way', 'sunrise from orbit', 'mars surface', 'lunar surface', 'solar eclipse', 'launch at night', 'star cluster', 'earth at night'];
+  const NASA_TERMS = ['nebula', 'galaxy', 'aurora', 'earth from space', 'hubble', 'webb telescope', 'saturn', 'jupiter', 'milky way', 'sunrise from orbit', 'mars surface', 'lunar surface', 'solar eclipse', 'launch at night', 'star cluster', 'earth at night',
+    'hurricane from space', 'iss earth', 'astronaut spacewalk', 'comet', 'supernova', 'chandra', 'moon apollo', 'earthrise', 'volcano from space', 'glacier', 'coral reef from space', 'city lights', 'sunset over earth', 'pillars of creation', 'andromeda', 'rocket launch'];
   def({
     id: 'nasa', name: 'NASA Image Library', sub: 'NASA media · generally not copyrighted', color: '#4f7cff', group: 'space', home: 'https://images.nasa.gov/',
     async fetchBatch() {
       const q = U.pick(NASA_TERMS);
-      const d = await U.fetchJSON(`https://images-api.nasa.gov/search?q=${encodeURIComponent(q)}&media_type=image&page_size=60&page=${U.randInt(1, 3)}`);
+      const d = await deepFetch(`nasa|${q}`, 60, (pg, n) => `https://images-api.nasa.gov/search?q=${encodeURIComponent(q)}&media_type=image&page_size=${n}&page=${pg}`,
+        j => j.collection && j.collection.metadata && j.collection.metadata.total_hits, j => j.collection && j.collection.items);
       return ((d.collection && d.collection.items) || []).filter(it => it.data && it.data[0] && !/chart|graph|diagram|infographic|logo|patch/i.test(it.data[0].title || '')).map(it => {
         const m = it.data[0], id = m.nasa_id, enc = encodeURIComponent(id);
         const base = `https://images-assets.nasa.gov/image/${enc}/${enc}`;
@@ -238,7 +286,7 @@
   };
 
   /* ── Mixer ─────────────────────────────────────────── */
-  const pool = (SS.pool = { queues: {}, fetching: {}, fails: {}, cooldown: {}, status: {}, queuedKeys: new Set(), history: new Set(U.store.get('history', [])), recent: U.store.get('recentArt', []) });
+  const pool = (SS.pool = { reach: {}, queues: {}, fetching: {}, fails: {}, cooldown: {}, status: {}, queuedKeys: new Set(), history: new Set(U.store.get('history', [])), recent: U.store.get('recentArt', []) });
   const saveHistory = U.debounce(() => { U.store.set('history', Array.from(pool.history).slice(-900)); U.store.set('recentArt', pool.recent.slice(-40)); }, 2000);
   // Generative art: -1 never · 0 only when nothing else can load · 1 now and then · 2 often
   pool.genAllowed = () => (SS.settings.weights.generative ?? 1) >= 0;
