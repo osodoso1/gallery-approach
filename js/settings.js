@@ -169,19 +169,39 @@
     }
   }
 
+  // Pick the radar's centre by searching a place (city, ZIP, landmark) or typing coordinates.
+  function spotPicker(after) {
+    const wrap = h('div', { class: 'row', style: { display: 'block' } });
+    const results = h('div', { class: 'wx-results', style: { marginTop: '8px' } });
+    const input = h('input', { type: 'text', placeholder: 'Search a city, ZIP or place…', style: { width: '100%' } });
+    let tq = null;
+    input.addEventListener('input', () => {
+      clearTimeout(tq);
+      const q = input.value.trim(); if (q.length < 2) { results.innerHTML = ''; return; }
+      tq = setTimeout(async () => {
+        try {
+          const list = await SS.env2.search(q);
+          results.innerHTML = '';
+          if (!list.length) results.append(h('div', { class: 'empty' }, 'No matches.'));
+          list.forEach(r => results.append(h('button', { class: 'wx-result', onclick: () => { set('flight.lat', +r.lat.toFixed(4)); set('flight.lon', +r.lon.toFixed(4)); set('flight.place', r.short); after(); renderMain(); } }, r.name)));
+        } catch (e) { results.innerHTML = ''; results.append(h('div', { class: 'empty' }, 'Search isn\'t available here.')); }
+      }, 350);
+    });
+    wrap.append(input, results,
+      h('div', { class: 'ctl', style: { justifyContent: 'flex-start', marginTop: '10px' } },
+        text('flight.place', 'Label', 'text', 140), text('flight.lat', 'lat', 'number', 96, after), text('flight.lon', 'lon', 'number', 104, after),
+        h('button', { class: 'btn small', onclick: () => { set('flight.lat', SS.DEFAULTS.flight.lat); set('flight.lon', SS.DEFAULTS.flight.lon); set('flight.place', SS.DEFAULTS.flight.place); after(); renderMain(); } }, 'Foster City')));
+    return wrap;
+  }
+
   function flights(m) {
     const F = SS.flights, st = F.status, after = () => F.restart();
     m.append(h('h2', null, 'Flights'), h('p', { class: 'lead' }, 'The next arrival into SFO, which passes right over Foster City on the 28L/28R approach. It waits behind a small tab in the corner. Tap the tab for the strip, the strip for the plane, and the little radar for the big one (with a compass mode on phones).'),
       row('Flight strip', 'Behind a tab keeps the art clear until you want it', seg('flight.strip', [['tab', 'Behind a tab'], ['always', 'Always showing'], ['off', 'Off']], () => { SS.radar.tuck(); SS.emit('flights'); })),
       row('Flight data', st.mode === 'live' ? `Live · ${st.count} aircraft via ${st.source}` : st.mode === 'sim' ? `Simulated · ${st.msg}` : st.msg || '', seg('flight.mode', [['auto', 'Auto'], ['live', 'Live only'], ['sim', 'Simulated'], ['off', 'Off']], after)),
-      row('Your spot', `${get('flight.place')} · ${(+get('flight.lat')).toFixed(4)}, ${(+get('flight.lon')).toFixed(4)}`,
-        text('flight.place', 'Label', 'text', 150), text('flight.lat', 'lat', 'number', 96, after), text('flight.lon', 'lon', 'number', 104, after)),
-      row('', null,
-        h('button', { class: 'btn small', onclick: () => {
-          if (!navigator.geolocation) return U.toast('Location isn\'t available in this browser');
-          navigator.geolocation.getCurrentPosition(p => { set('flight.lat', +p.coords.latitude.toFixed(4)); set('flight.lon', +p.coords.longitude.toFixed(4)); set('flight.place', 'My location'); after(); renderMain(); }, () => U.toast('Couldn\'t get your location here'), { timeout: 10000 });
-        } }, U.icon('pin'), 'Use my location'),
-        h('button', { class: 'btn small', onclick: () => { set('flight.lat', SS.DEFAULTS.flight.lat); set('flight.lon', SS.DEFAULTS.flight.lon); set('flight.place', SS.DEFAULTS.flight.place); after(); renderMain(); } }, 'Reset to Foster City')),
+      row('Centre the radar on', F.spot().device ? `You · ${F.here.name} (this device's location)` : SS.settings.flight.locMode === 'fixed' ? `${get('flight.place')} · ${(+get('flight.lat')).toFixed(4)}, ${(+get('flight.lon')).toFixed(4)}` : (F.locNote || 'Waiting for your location…'),
+        seg('flight.locMode', [['device', 'My location'], ['fixed', 'A place I pick']], v => { if (v === 'device') F.locate(true); setTimeout(renderMain, 50); })),
+      SS.settings.flight.locMode === 'fixed' ? spotPicker(after) : row('', 'Follows wherever this device is, and updates every 15 minutes. Your position stays on this device and never syncs.', h('button', { class: 'btn small', onclick: () => { F.locate(true); setTimeout(renderMain, 1500); } }, U.icon('pin'), 'Update now')),
       row('Airport', 'IATA code, e.g. SFO, OAK, SJC', text('flight.airport', 'SFO', 'text', 80, after)),
       row('Radar range', null, seg('flight.radius', [[12, '12 nm'], [22, '22 nm'], [35, '35 nm']], after)),
       h('p', { class: 'note' }, 'Positions come from free community ADS-B networks (', link('https://adsb.lol', 'adsb.lol'), ', ', link('https://airplanes.live', 'airplanes.live'), ', ', link('https://adsb.fi', 'adsb.fi'), '). Routes come from ', link('https://www.adsbdb.com', 'adsbdb'), ' and photos of the exact plane from ', link('https://www.planespotters.net', 'Planespotters.net'), '. When there isn\'t one (or the flight is simulated), the card shows a free-licence photo of the same airline and type from ', link('https://commons.wikimedia.org', 'Wikimedia Commons'), ', and you can flip to the app\'s drawing. Photos are always credited. Passenger counts aren\'t broadcast by aircraft, so the strip shows the typical seat range for the type. When live data can\'t be reached, the strip says SIMULATED and shows made-up flights on the real approach path.'),

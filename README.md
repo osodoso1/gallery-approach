@@ -62,7 +62,7 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 
 ## Using it
 
-- **Tap the art** and everything disappears (clock, weather, caption, flight tab, controls), leaving only the art. **Tap again** and it all comes back. **H** does the same on a keyboard.
+- **Tap the art** and everything disappears (clock, weather, caption, flight tab, controls), leaving only the art. **Tap again** and it all comes back. **Double-tap anywhere** that isn't a button (even on top of the open weather panel or the caption) always hides everything. **H** does the same on a keyboard.
 - **Calm by default.** If everything is showing and you leave it alone, it fades on its own; a tap (or moving the mouse) brings it back: the control bar, weather, chips, caption and the flight tab. The control bar slides away after a few seconds; the rest fades after 20 s (⚙ → Slideshow → *Hide everything but the art after*: 10 s to 5 min, or never). Each new picture still shows its caption for a few seconds, so you always see where it came from.
 - **The clock stays** when everything else fades. The 🕒 button in the control bar (or **K**) hides or shows it.
 - **⏱ in the control bar** sets how often the picture changes: 30 sec up to 1 hr (default 2 min). Generative pieces stay at most 2 min.
@@ -72,7 +72,7 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 - **The flight tab** (bottom right, e.g. `✈ CX 1436 1:42`) brings up the flight strip; the ⌄ on the strip tucks it away again. Want the strip showing all the time, or not at all? ⚙ → Flights → *Flight strip*.
 - **Tap the flight strip** for the full card. It shows a real photo: the exact plane from Planespotters when there is one, otherwise a free-licence photo of the same airline and type from Wikimedia Commons (for simulated flights too), labelled with what it shows and who took it. **Photo / Drawing** flips to the app's drawing of the type.
 - **Big radar** (tap the little radar on the strip, or **R**): tap any plane to see it. On a phone, tap **Compass**: the radar turns to match the way you're facing, the cone shows where you're pointing, and it tells you which plane is in front of you, how far away it is and how high to look ("look up 9°"). Hold the phone flat like a map, or up like a camera. If it's a few degrees off, the ‹ › buttons line it up.
-- **Easter egg:** long-press the flight strip, triple-tap the flight number, or type ↑↑↓↓←→←→BA. Your first plane is the one landing right now (or the last one the radar saw). Drag it to its runway, then keep the rest of the traffic apart.
+- **Easter egg:** long-press the flight strip, triple-tap the flight number, or type ↑↑↓↓←→←→BA. Your first plane is the one landing right now (or the last one the radar saw). Drag it to its runway, then keep the rest of the traffic apart. **2×** in the corner doubles the speed. Every so often the tower tells a plane to make a 360 for spacing, and it spins round once or twice before carrying on.
 
 **Generative art** is drawn by the app itself, in code, right on your screen (nebulas, auroras, dusk scenes, geometric compositions). It isn't a photo and it isn't AI. It mixes in now and then, and fills in when real art can't load. **Don't want it?** ⚙ → Slideshow → *Generative art* → **Off** (or tap *Don't show generative art* in a generative piece's About card). With it off, if nothing new can load, recent pieces of real art come round again.
 
@@ -103,7 +103,8 @@ Google Arts & Culture has no public API, so it can't be included automatically. 
 - Positions: free community ADS-B feeds (adsb.lol, airplanes.live, adsb.fi), checked every 10 s, with automatic failover.
 - Route (origin) and registration: [adsbdb](https://www.adsbdb.com), which is crowd-sourced and occasionally stale.
 - Photo: [Planespotters.net](https://www.planespotters.net) for the exact plane, else [Wikimedia Commons](https://commons.wikimedia.org): that registration, then the same airline and type, then Wikipedia's lead photo of the type. Always credited with the photographer and licence; cached on the device.
-- Compass mode uses the phone's compass (iPhone asks once for Motion & Orientation access) and your location if you're within 40 nm of your spot.
+- **Where the radar is centred:** your device's location by default (it updates every 15 minutes, and stays on that device; it never syncs). Or pick a place: ⚙ → Flights → *Centre the radar on* → *A place I pick*, then search a city or ZIP. The big radar shows where it's centred, with a *Change* button.
+- **Compass:** tap Compass on the big radar once (iPhone asks for Motion & Orientation access). It stays on, and both the big radar and the little one on the strip turn as you turn. Tap it again to switch it off.
 - **Passengers:** aircraft don't broadcast this, so the app shows the typical seat range for the aircraft type.
 - The default spot is a point in Foster City, right under the 28L/28R approach. Set your exact spot in ⚙ → Flights ("Use my location" works over HTTPS or on the Pi itself).
 - If live data can't be reached, the strip says **SIMULATED** and shows made-up flights on the real 28L/28R approach path. It never passes these off as live.

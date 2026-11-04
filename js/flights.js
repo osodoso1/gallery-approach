@@ -258,6 +258,44 @@
     return { text: `${base} No free photo of it turned up.` };
   };
 
+  /* ── Where the radar is centred: this device's location (default), or a fixed spot you choose ──
+     The device position is kept on this device only (it never syncs to your other screens). */
+  F.here = U.store.get('here', null);
+  F.spot = () => {
+    const s = SS.settings.flight;
+    if (s.locMode !== 'fixed' && F.here) return { lat: F.here.lat, lon: F.here.lon, place: F.here.name || 'My location', device: true };
+    return { lat: s.lat, lon: s.lon, place: s.place || 'Your spot', device: false, waiting: s.locMode !== 'fixed' };
+  };
+  let locating = false;
+  F.locNote = '';
+  F.locate = function (fromUser) {
+    if (locating) return;
+    if (!window.isSecureContext || !navigator.geolocation) { F.locNote = 'This page can\'t use your location, so the radar uses the fixed spot.'; return; }
+    locating = true;
+    navigator.geolocation.getCurrentPosition(async p => {
+      locating = false;
+      const lat = +p.coords.latitude.toFixed(4), lon = +p.coords.longitude.toFixed(4);
+      const old = F.here, moved = !old || G.dist(old.lat, old.lon, lat, lon) > 0.3;
+      const name = moved || !old.name ? ((SS.env2 && SS.env2.placeName && await SS.env2.placeName(lat, lon)) || 'My location') : old.name;
+      F.here = { lat, lon, name, at: Date.now() };
+      U.store.set('here', F.here);
+      F.locNote = '';
+      if (moved) F.restart();
+      SS.emit('flights');
+      if (fromUser) U.toast(`Radar centred on ${name}`);
+    }, err => {
+      locating = false;
+      F.locNote = err && err.code === 1 ? 'Location permission is off, so the radar uses the fixed spot. Allow location for this site to centre it on you.' : 'Couldn\'t get your location, so the radar uses the fixed spot for now.';
+      if (fromUser) U.toast(F.locNote, 5000);
+      SS.emit('flights');
+    }, { timeout: 12000, maximumAge: 5 * 60e3, enableHighAccuracy: false });
+  };
+  function followDevice() {
+    if (SS.settings.flight.locMode === 'fixed' || SS.env.cspBlocked) return;
+    if (navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: 'geolocation' }).then(q => { if (q.state !== 'denied') F.locate(); else F.locNote = 'Location permission is off for this site, so the radar uses the fixed spot.'; }).catch(() => F.locate());
+    else F.locate();
+  }
+
   /* ── Airport geometry ─────────────────────────────── */
   F.airport = () => {
     const code = (SS.settings.flight.airport || 'SFO').toUpperCase();
@@ -286,10 +324,10 @@
   }
 
   async function pollLive() {
-    const s = SS.settings.flight, apt = F.airport();
+    const s = SS.settings.flight, sp = F.spot(), apt = F.airport();
     // centre the query between you and the airport so both ends of the approach are covered
-    const cla = (s.lat + apt.lat) / 2, clo = (s.lon + apt.lon) / 2;
-    const r = Math.min(60, Math.max(10, Math.round(s.radius + G.dist(s.lat, s.lon, apt.lat, apt.lon) / 2)));
+    const cla = (sp.lat + apt.lat) / 2, clo = (sp.lon + apt.lon) / 2;
+    const r = Math.min(60, Math.max(10, Math.round(s.radius + G.dist(sp.lat, sp.lon, apt.lat, apt.lon) / 2)));
     for (let tries = 0; tries < PROVIDERS.length; tries++) {
       const p = PROVIDERS[provIdx];
       try {
@@ -385,7 +423,7 @@
     });
   }
   function spawnOverflight(now) {
-    const s = SS.settings.flight, trk = U.rand(0, 360), start = G.dest(s.lat, s.lon, (trk + 180) % 360, 30);
+    const s = F.spot(), trk = U.rand(0, 360), start = G.dest(s.lat, s.lon, (trk + 180) % 360, 30);
     const [al, org, type] = U.pick(SIM);
     simFlights.push({ hex: 'sim' + (++simSeq).toString(16).padStart(4, '0'), cs: al + U.randInt(100, 2999), type, sim: true, over: true, t0: now, start, trk, gs: U.randInt(420, 500), alt: U.pick([31000, 33000, 35000, 37000, 39000]), info: { route: { origin: { iata: org, city: AP[org][0] }, dest: null, airline: AL[al][0], airlineIata: AL[al][1] } } });
   }
@@ -394,7 +432,7 @@
     if (!simFlights.length) { [0.82, 0.55, 0.3, 0.08].forEach(p => spawnSim(now, p)); spawnOverflight(now); lastSpawn = now; }
     simFlights = simFlights.filter(a => {
       const p = simPos(a, now);
-      if (a.over) return G.dist(SS.settings.flight.lat, SS.settings.flight.lon, p.lat, p.lon) < 36;
+      if (a.over) { const sp = F.spot(); return G.dist(sp.lat, sp.lon, p.lat, p.lon) < 36; }
       return !p.landed || now - a.t0 < a.path[a.path.length - 1].t * 1000 + 8000;
     });
     if (now - lastSpawn > U.rand(100, 170) * 1000) { spawnSim(now, 0); lastSpawn = now; if (Math.random() < 0.3) spawnOverflight(now); }
@@ -424,12 +462,18 @@
     SS.emit('flights');
     timer = setTimeout(tick, live ? 10000 : 2000);
   }
-  F.start = () => { tick(); setInterval(() => { analyze(); SS.emit('flights-tick'); }, 1000); };
+  F.start = () => {
+    followDevice();
+    setInterval(followDevice, 15 * 60e3);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') followDevice(); });
+    SS.on('settings', p => { if (p === 'flight.locMode' || p === 'cloud') { if (SS.settings.flight.locMode !== 'fixed') followDevice(); F.restart(); } });
+    tick(); setInterval(() => { analyze(); SS.emit('flights-tick'); }, 1000);
+  };
   F.restart = () => { simFlights = []; byHex.clear(); F.list = []; liveFails = 0; lastLiveTry = 0; tick(); };
 
   /* ── Analysis: who's inbound, who's next, when do they pass you ── */
   function analyze() {
-    const s = SS.settings.flight, apt = F.airport(), now = Date.now();
+    const s = F.spot(), apt = F.airport(), now = Date.now();
     for (const a of F.list) {
       const p = F.pos(a, now);
       a.cur = p;

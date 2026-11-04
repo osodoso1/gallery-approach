@@ -242,7 +242,7 @@
 
   /* ── Settings ── */
   const DEFAULTS = {
-    v: 4,
+    v: 5,
     slideSeconds: 120,          // how long each picture stays (seconds)
     genSeconds: 120,            // generative pieces never stay longer than this
     speed: 'medium',            // slow | medium | fast
@@ -264,7 +264,7 @@
     clock24: false,
     calm: 20,                   // seconds of no touching before everything but the art (and clock) fades · 0 = never
     agendaChip: true,
-    flight: { enabled: true, mode: 'auto', lat: 37.5636, lon: -122.2730, place: 'Foster City', airport: 'SFO', radius: 22, strip: 'tab' },   // strip: tab (tucked away) | always | off
+    flight: { enabled: true, mode: 'auto', lat: 37.5636, lon: -122.2730, place: 'Foster City', airport: 'SFO', radius: 22, strip: 'tab', locMode: 'device' },   // strip: tab (tucked away) | always | off
     env: { enabled: true, units: 'F', pollenKey: '', show: 'compact', view: 'day', loc: { mode: 'device', lat: null, lon: null, name: '' } },
     photoSync: true,
     serverUrl: '',              // optional: your Pi (http://pi.local:8080) or the Cloudflare Worker URL
@@ -286,7 +286,9 @@
   const stored = U.store.get('settings', {});
   if (!stored.v || stored.v < 2) { if (stored.slideSeconds === 20) stored.slideSeconds = 120; }
   if (!stored.v || stored.v < 3) { if (stored.weights && stored.weights.generative === 0) stored.weights.generative = 1; stored.v = 3; }
-  if (stored.v < 4) { if (stored.flight && typeof stored.flight.strip === 'boolean') stored.flight.strip = stored.flight.strip ? 'tab' : 'off'; stored.v = 4; }
+  if (stored.v < 5) { stored.flight = Object.assign({}, stored.flight, { locMode: (stored.flight && stored.flight.locMode) || 'device' }); }
+  if (stored.v < 4) { if (stored.flight && typeof stored.flight.strip === 'boolean') stored.flight.strip = stored.flight.strip ? 'tab' : 'off'; }
+  stored.v = Math.max(stored.v || 0, 5);
   SS.settings = merge(DEFAULTS, stored);
   // Flight strip: 'tab' (tucked behind a small tab) | 'always' | 'off'. Older devices may sync a boolean.
   SS.stripMode = () => { const f = SS.settings.flight, v = f.strip; return !f.enabled || f.mode === 'off' || v === false || v === 'off' ? 'off' : v === 'always' ? 'always' : 'tab'; };

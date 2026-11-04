@@ -5,6 +5,7 @@
   const U = SS.u, F = SS.flights;
   const GM = (SS.game = { isOpen: false });
   let host, cv, g, hud, radioBox, W = 0, H = 0, s = 1, dpr = 1, raf = 0, st = null, rw = null, audio = null, wasPlaying = true;
+  let fast = !!U.store.get('towerFast', false);   // 2× speed
 
   const TELE = { UAL: 'United', ASA: 'Alaska', QXE: 'Horizon', SKW: 'SkyWest', DAL: 'Delta', AAL: 'American', SWA: 'Southwest', JBU: 'JetBlue', HAL: 'Hawaiian', ACA: 'Air Canada', POE: 'Porter', AMX: 'Aeromexico', BAW: 'Speedbird', AFR: 'Air France', DLH: 'Lufthansa', UAE: 'Emirates', SIA: 'Singapore', CPA: 'Cathay', EVA: 'Eva', KAL: 'Korean Air', ANA: 'All Nippon', JAL: 'Japan Air', QFA: 'Qantas', ANZ: 'New Zealand', AIC: 'Air India', FDX: 'FedEx', UPS: 'UPS' };
   const spoken = p => { const m = /^([A-Z]{3})(\d+)/.exec(p.cs || ''); return m && TELE[m[1]] ? `${TELE[m[1]]} ${m[2].split('').join(' ')}` : p.flightNo; };
@@ -62,7 +63,7 @@
     g.fillStyle = 'rgba(255,220,150,.5)';
     for (let i = 0; i < 26; i++) { const f = i / 25; g.fillRect(U.lerp(W * 0.4, W * 1.02, f) - 1, U.lerp(H * 0.84, H * 0.76, f) - 1, 2, 2); }
     g.fillStyle = '#ffb547'; g.beginPath(); g.arc(W * 0.35, H * 0.875, 3.5 * s, 0, Math.PI * 2); g.fill();
-    label(String((SS.settings.flight.place || 'You').split('·')[0]).trim().toUpperCase().slice(0, 18), W * 0.35 + 8 * s, H * 0.875 + 4 * s, 'left', .55, 9);
+    label(String((F.spot().place || 'You').split('·')[0]).trim().toUpperCase().slice(0, 18), W * 0.35 + 8 * s, H * 0.875 + 4 * s, 'left', .55, 9);
     label('FOSTER CITY', W * 0.33, H * 0.93, 'center', .35, 9);
     label('SAN MATEO BRIDGE', W * 0.72, H * 0.79 - 8 * s, 'center', .3, 8.5);
     label('SAN  FRANCISCO  BAY', W * 0.75, H * 0.3, 'center', .16, 13);
@@ -120,7 +121,7 @@
       g.fillStyle = 'rgba(244,241,234,.9)'; g.font = `600 ${10.5 * s}px "JetBrains Mono", monospace`; g.textAlign = 'left';
       g.fillText(p.flightNo, p.x + p.r + 5 * s, p.y - 3 * s);
       g.fillStyle = 'rgba(244,241,234,.5)'; g.font = `${9 * s}px "JetBrains Mono", monospace`;
-      g.fillText(`${p.type || ''}${p.hero ? '  ★' : ''}`, p.x + p.r + 5 * s, p.y + 8 * s);
+      g.fillText(`${p.type || ''}${p.hero ? '  ★' : ''}${p.spin ? '  ↻ 360' : ''}`, p.x + p.r + 5 * s, p.y + 8 * s);
     }
   }
   function drawPath(p) {
@@ -188,7 +189,7 @@
     return spec;
   }
   function reset() {
-    st = { planes: [], fx: [], score: 0, t: 0, next: 9999, over: false, started: false, usedCs: [], heroDone: false, warnBeep: 0, drawing: null, hero: null };
+    st = { planes: [], fx: [], score: 0, t: 0, next: 9999, over: false, started: false, usedCs: [], heroDone: false, warnBeep: 0, drawing: null, hero: null, nextSpin: U.rand(25, 55) };
   }
 
   function start() {
@@ -223,16 +224,34 @@
       st.next = st.t + Math.max(3.6, 10.5 - st.score * 0.38);
       beep(520, 0.08, 'triangle', 0.04);
     }
+    // Now and then (not all the time) the tower asks someone to make a 360 for spacing.
+    if (st.t >= st.nextSpin) {
+      const m = 90 * s;
+      const cands = st.planes.filter(p => p.state === 'air' && !p.entering && !p.spin && !(p.hero && st.t < 30) && p.x > m && p.x < W - m && p.y > m && p.y < H - m && !(p.pathOk && p.path.length < 4));
+      if (cands.length) {
+        const p = U.pick(cands), loops = Math.random() < 0.25 ? 2 : 1, dir = Math.random() < 0.5 ? 1 : -1;
+        p.spin = { left: Math.PI * 2 * loops, dir, loops };
+        say(`Tower: ${spoken(p)}, make ${loops === 2 ? 'two' : 'a'} ${dir > 0 ? 'right' : 'left'} three-sixt${loops === 2 ? 'ies' : 'y'} for spacing.`);
+        st.nextSpin = st.t + U.rand(40, 85);
+      } else st.nextSpin = st.t + 6;
+    }
     const diff = 1 + Math.min(0.7, st.score * 0.025);
     for (const p of st.planes) {
       if (p.state === 'air') {
-        if (p.path.length) {
+        if (p.spin) {
+          // a 360 for spacing: a tight turn on the spot, then carry on (with the path, if it has one)
+          const turn = 3.0 * dt;
+          p.a += turn * p.spin.dir; p.spin.left -= turn;
+          if (p.spin.left <= 0) { p.spin = null; p.orbit = 0; }
+        } else if (p.path.length) {
           const [tx, ty] = p.path[0];
           const da = Math.atan2(ty - p.y, tx - p.x);
           let d = ((da - p.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-          const maxTurn = 3.2 * dt;
-          p.a += U.clamp(d, -maxTurn, maxTurn);
-          if (Math.hypot(tx - p.x, ty - p.y) < 7 * s + p.speed * dt) p.path.shift();
+          const maxTurn = 3.2 * dt, turn = U.clamp(d, -maxTurn, maxTurn);
+          p.a += turn;
+          p.orbit = (p.orbit || 0) + Math.abs(turn);
+          // reached it, or it's inside the turning circle and we've gone right round it: move on to the next point
+          if (Math.hypot(tx - p.x, ty - p.y) < 7 * s + p.speed * dt || p.orbit > Math.PI * 2) { p.path.shift(); p.orbit = 0; }
           if (!p.path.length) p.pathOk = false;
         } else if (!p.entering) {
           const m = 22 * s;
@@ -314,7 +333,7 @@
   function frame(now) {
     const t = now / 1000, dt = Math.min(0.05, lastT ? t - lastT : 0.016);
     lastT = t;
-    update(dt); render(t);
+    update(fast ? dt * 2 : dt); render(t);
     raf = requestAnimationFrame(frame);
   }
 
@@ -340,7 +359,8 @@
     const { p, pts } = st.drawing;
     st.drawing = null;
     if (pts.length < 2 || p.state !== 'air') return;
-    p.path = pts;
+    p.path = pts; p.orbit = 0;
+    if (p.spin) { p.spin = null; radio(`${p.flightNo}: breaking off the turn.`); }
     const end = pts[pts.length - 1];
     const mine = p.runway === 'R' ? rw.R : rw.Lr, other = p.runway === 'R' ? rw.Lr : rw.R;
     if (Math.hypot(end[0] - mine.thr[0], end[1] - mine.thr[1]) < 26 * s) {
@@ -393,6 +413,7 @@
       U.h('div', null, U.h('div', { class: 'gm-title' }, 'SFO Tower · easter egg'), U.h('div', { class: 'gm-score' }, '0')),
       U.h('div', { class: 'gm-btns' },
         U.h('button', { class: 'btn small', onclick: e => { SS.setSetting('sound', !SS.settings.sound); e.currentTarget.replaceChildren(U.icon(SS.settings.sound ? 'sound' : 'mute'), SS.settings.sound ? 'Sound on' : 'Sound off'); if (SS.settings.sound && audio && audio.state === 'suspended') audio.resume(); } }, U.icon(SS.settings.sound ? 'sound' : 'mute'), SS.settings.sound ? 'Sound on' : 'Sound off'),
+        U.h('button', { class: 'btn small gm-fast' + (fast ? ' on' : ''), title: 'Double speed', 'aria-pressed': fast ? 'true' : 'false', onclick: e => { fast = !fast; U.store.set('towerFast', fast); e.currentTarget.classList.toggle('on', fast); e.currentTarget.setAttribute('aria-pressed', fast ? 'true' : 'false'); radio(fast ? 'Speed: 2×' : 'Speed: normal'); } }, '2×'),
         U.h('button', { class: 'btn small', onclick: GM.close }, U.icon('x'), 'Exit')));
     radioBox = U.h('div', { class: 'gm-radio' });
     host.append(cv, hud, radioBox);

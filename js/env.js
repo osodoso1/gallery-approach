@@ -69,7 +69,8 @@
   EN.loc = function () {
     const L = SS.settings.env.loc || {}, fl = SS.settings.flight;
     if ((L.mode === 'device' || L.mode === 'place') && L.lat != null && L.lon != null) return { lat: L.lat, lon: L.lon, name: L.name || (L.mode === 'device' ? 'My location' : 'Chosen place'), mode: L.mode };
-    return { lat: fl.lat, lon: fl.lon, name: fl.place || 'Flight spot', mode: L.mode === 'device' ? 'device-pending' : 'spot' };
+    const sp = SS.flights.spot();
+    return { lat: sp.lat, lon: sp.lon, name: sp.place || 'Flight spot', mode: L.mode === 'device' ? 'device-pending' : 'spot' };
   };
   async function placeName(lat, lon) {
     try {
@@ -96,6 +97,7 @@
       }, { timeout: 12000, maximumAge: 30 * 60e3 });
     });
   };
+  EN.placeName = placeName;
   EN.search = async function (q) {
     const d = await U.fetchJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`, { timeout: 8000 });
     return (d.results || []).map(r => ({ name: [r.name, r.admin1, r.country_code].filter(Boolean).join(', '), short: r.name, lat: r.latitude, lon: r.longitude }));

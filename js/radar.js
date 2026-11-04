@@ -144,7 +144,7 @@
   }
 
   /* ── Where a plane is from where you stand ── */
-  R.observer = () => (CP.on && CP.obs) || { lat: SS.settings.flight.lat, lon: SS.settings.flight.lon };
+  R.observer = () => (CP.on && CP.obs) || F.spot();
   R.look = function (a, now = Date.now()) {
     const o = R.observer(), p = F.pos(a, now);
     const dist = G.dist(o.lat, o.lon, p.lat, p.lon), brg = G.bearing(o.lat, o.lon, p.lat, p.lon);
@@ -257,20 +257,23 @@
       try { if ((await DeviceOrientationEvent.requestPermission()) !== 'granted') { U.toast(/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) ? 'Compass access was turned down. Close and reopen the page to be asked again, or check Settings → Apps → Safari → Motion & Orientation Access.' : 'Compass access was turned down. Allow motion sensors for this site in the browser\'s site settings.'); return; } }
       catch (err) { U.toast('Couldn\'t ask for compass access here'); return; }
     }
-    const s = SS.settings.flight;
-    CP.on = true; CP.at = 0; CP.heading = null; CP.decl = declination(s.lat, s.lon);
+    const sp = F.spot();
+    CP.on = true; CP.at = 0; CP.heading = null; CP.decl = declination(sp.lat, sp.lon);
+    U.store.set('compassPref', true);
     addEventListener('deviceorientationabsolute', onOrient, true);
     addEventListener('deviceorientation', onOrient, true);
     compassBtn && compassBtn.classList.add('on');
-    setTimeout(() => { if (CP.on && !CP.at) { U.toast('No compass reading. Phones and tablets have one; most laptops don\'t.'); R.compassOff(); } }, 3500);
-    if (navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
-      const la = pos.coords.latitude, lo = pos.coords.longitude, away = G.dist(la, lo, s.lat, s.lon);
-      if (away < 40) { CP.obs = { lat: la, lon: lo }; CP.decl = declination(la, lo); }
-      else U.toast(`You're ${Math.round(away)} nm from ${s.place || 'your spot'}, so directions are worked out from there`);
+    setTimeout(() => { if (CP.on && !CP.at) { U.toast('No compass reading. Phones and tablets have one; most laptops and Pis don\'t.'); R.compassOff(); } }, 3500);
+    // a fixed spot? then work out directions from where you actually are, if you're nearby
+    if (!sp.device && navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
+      const la = pos.coords.latitude, lo = pos.coords.longitude, away = G.dist(la, lo, sp.lat, sp.lon);
+      if (away < 40) { CP.obs = { lat: la, lon: lo, place: 'You', device: true }; CP.decl = declination(la, lo); }
+      else U.toast(`You're ${Math.round(away)} nm from ${sp.place}, so directions are worked out from there`);
     }, () => {}, { timeout: 8000, maximumAge: 120000 });
   };
   R.compassOff = function () {
     CP.on = false; CP.heading = null; CP.obs = null;
+    U.store.set('compassPref', false);
     removeEventListener('deviceorientationabsolute', onOrient, true);
     removeEventListener('deviceorientation', onOrient, true);
     compassBtn && compassBtn.classList.remove('on');
@@ -287,9 +290,9 @@
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
     const g = cv.getContext('2d'), s = SS.settings.flight, cx = W / 2, cy = H / 2, rad = Math.min(W, H) / 2 - 1 * dpr;
     const range = s.radius, k = rad / range;
-    const compassView = detail && CP.on && CP.heading != null;
+    const compassView = CP.on && CP.heading != null;   // the little radar on the strip turns with you too
     const turn = compassView ? CP.heading : 0, tr = turn * Math.PI / 180, ct = Math.cos(tr), stt = Math.sin(tr);
-    const o = detail ? R.observer() : { lat: s.lat, lon: s.lon };
+    const o = R.observer();
     const proj = (la, lo) => { const [e, n] = G.enu(o.lat, o.lon, la, lo); return [cx + (e * ct - n * stt) * k, cy - (e * stt + n * ct) * k]; };
     const atBrg = (b, r) => { const a = (b - turn) * Math.PI / 180; return [cx + Math.sin(a) * r, cy - Math.cos(a) * r]; };
     g.clearRect(0, 0, W, H);
@@ -333,7 +336,7 @@
     }
     // you
     g.fillStyle = '#f4f1ea'; g.beginPath(); g.arc(cx, cy, (detail ? 3.5 : 2) * dpr, 0, Math.PI * 2); g.fill();
-    if (detail) { g.fillStyle = 'rgba(244,241,234,.75)'; g.font = `500 ${10.5 * dpr}px Inter, sans-serif`; g.textAlign = 'center'; g.fillText(CP.on && CP.obs ? 'You' : (s.place || 'You'), cx, cy + 17 * dpr); }
+    if (detail) { g.fillStyle = 'rgba(244,241,234,.75)'; g.font = `500 ${10.5 * dpr}px Inter, sans-serif`; g.textAlign = 'center'; g.fillText(o.device ? 'You' : (o.place || 'You'), cx, cy + 17 * dpr); }
     // what's in the view cone?
     if (detail) {
       facing = null;
@@ -390,7 +393,10 @@
     }
     g.restore();
     g.strokeStyle = 'rgba(255,181,71,.35)'; g.lineWidth = dpr; g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI * 2); g.stroke();
-    if (compassView) { // heading pointer at the top
+    if (compassView && !detail) { // little radar: a red tick where north is
+      const [nx, ny] = atBrg(0, rad - 3 * dpr); g.fillStyle = '#ff6b5e'; g.beginPath(); g.arc(nx, ny, 2.2 * dpr, 0, Math.PI * 2); g.fill();
+    }
+    if (compassView && detail) { // heading pointer at the top
       g.fillStyle = '#f4f1ea'; g.beginPath(); g.moveTo(cx, 3 * dpr); g.lineTo(cx - 6 * dpr, 13 * dpr); g.lineTo(cx + 6 * dpr, 13 * dpr); g.closePath(); g.fill();
     }
   }
@@ -454,13 +460,24 @@
     host.append(win);
     host.onclick = e => { if (e.target === host) R.closeBig(); };
     host.hidden = false; R.bigOpen = true;
+    if (U.store.get('compassPref', false) && !CP.on) R.compassOn();
     renderList();
   };
-  R.closeBig = () => { U.$('#radarBig').hidden = true; R.bigOpen = false; if (CP.on) R.compassOff(); if (R.cardOpen && U.$('#flightCard').classList.contains('top')) R.closeCard(); };
+  R.closeBig = () => { U.$('#radarBig').hidden = true; R.bigOpen = false; if (R.cardOpen && U.$('#flightCard').classList.contains('top')) R.closeCard(); };
   function renderList() {
     if (!bigList) return;
     const st = F.status;
-    bigStatus.textContent = st.mode === 'live' ? `Live · ${st.count} aircraft via ${st.source} · updated ${U.fmt.ago(Date.now() - st.at)} · tap a plane to see it` : st.mode === 'sim' ? `Simulated traffic. ${st.msg}` : st.msg || 'Starting…';
+    const sp = R.observer();
+    const sig = [sp.device, sp.place, sp.waiting, F.here && F.here.name, F.locNote, st.mode, st.count, st.source, st.msg, st.mode === 'live' ? U.fmt.ago(Date.now() - st.at) : ''].join('|');
+    if (bigStatus._sig !== sig) {   // only rebuild when something changed, so the Change button stays tappable
+    bigStatus._sig = sig;
+    bigStatus.innerHTML = '';
+    bigStatus.append(
+      U.h('div', { class: 'rb-where' }, U.icon('pin'), U.h('span', null, sp.device ? `Centred on you · ${(F.here && F.here.name) || 'your location'}` : `Centred on ${sp.place}${sp.waiting ? ' until your location comes in' : ''}`),
+        U.h('button', { class: 'btn small ghost', onclick: () => { R.closeBig(); SS.settingsUI.open('flights'); } }, 'Change')),
+      F.locNote ? U.h('div', null, F.locNote) : '',
+      st.mode === 'live' ? `Live · ${st.count} aircraft via ${st.source} · updated ${U.fmt.ago(Date.now() - st.at)} · tap a plane to see it` : st.mode === 'sim' ? `Simulated traffic. ${st.msg} Tap a plane to see it.` : st.msg || 'Starting…');
+    }
     bigList.innerHTML = '';
     const rows = F.list.slice().sort((a, b) => (b.inbound - a.inbound) || (a.inbound ? (a.eta || 1e9) - (b.eta || 1e9) : a.dObs - b.dObs)).slice(0, 30);
     if (!rows.length) bigList.append(U.h('div', { class: 'empty' }, 'No aircraft in range right now.'));

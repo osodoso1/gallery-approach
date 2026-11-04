@@ -49,6 +49,17 @@
   // Anything hidden (art only, or the timer has faded things) → show it all; everything showing → art only.
   UI.toggleArt = () => (UI.isArtOnly() || UI.isCalm() ? UI.showAll() : UI.artOnly());
 
+  // Double-tap anywhere that isn't a button (the art, the open weather panel, the caption…): everything goes.
+  const NO_DBL = 'button, a, input, select, textarea, label, .wx-chips, .clk-next, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #hud, #panelTab, #stripTab, #flightStrip';
+  let lastUp = { t: 0, x: 0, y: 0 };
+  addEventListener('pointerup', e => {
+    if (!e.isPrimary || UI.gameOpen) return;
+    if (e.target.closest && e.target.closest(NO_DBL)) { lastUp.t = 0; return; }
+    const now = Date.now();
+    if (now - lastUp.t < 380 && Math.hypot(e.clientX - lastUp.x, e.clientY - lastUp.y) < 45) { lastUp.t = 0; UI.dblAt = now; UI.artOnly(); return; }
+    lastUp = { t: now, x: e.clientX, y: e.clientY };
+  }, true);
+
   ['pointermove', 'pointerdown', 'keydown', 'wheel'].forEach(ev => addEventListener(ev, e => {
     if (e.pointerType) lastPtr = e.pointerType;
     if (ev === 'pointermove' && e.pointerType !== 'mouse') return;
@@ -211,6 +222,7 @@
       const dx = e.clientX - sx, dy = e.clientY - sy, dt = Date.now() - st;
       if (dt < 600 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { dx < 0 ? SS.show.advance() : SS.show.prev(); return; }
       if (Math.hypot(dx, dy) > 14 || dt > 700) return;           // a drag or a long press, not a tap
+      if (UI.dblAt && Date.now() - UI.dblAt < 60) return;          // second tap of a double-tap: already hidden
       if (wasOpen) { SS.planner.close(); UI.wakeUp(); return; }
       UI.toggleArt();
     });
