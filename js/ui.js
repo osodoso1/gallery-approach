@@ -35,9 +35,25 @@
     SS.emit('calm', true);
   }
   UI.calmNow = () => { clearTimeout(calmT); clearTimeout(idleT); document.body.classList.remove('awake'); goCalm(); };
+
+  /* ── Tap the art: everything goes, leaving only the art. Tap again: everything comes back. ── */
+  const B = document.body;
+  UI.isArtOnly = () => B.classList.contains('art-only');
+  UI.artOnly = function () {
+    clearTimeout(calmT); clearTimeout(idleT);
+    B.classList.remove('awake', 'calm'); B.classList.add('art-only');
+    SS.radar && (SS.radar.closeCard(), SS.radar.tuck());
+    UI.info.close(); UI.timer.close();
+  };
+  UI.showAll = function () { B.classList.remove('art-only'); UI.wakeUp(); };
+  // Anything hidden (art only, or the timer has faded things) → show it all; everything showing → art only.
+  UI.toggleArt = () => (UI.isArtOnly() || UI.isCalm() ? UI.showAll() : UI.artOnly());
+
   ['pointermove', 'pointerdown', 'keydown', 'wheel'].forEach(ev => addEventListener(ev, e => {
     if (e.pointerType) lastPtr = e.pointerType;
     if (ev === 'pointermove' && e.pointerType !== 'mouse') return;
+    if (ev === 'pointerdown' && e.target.closest && e.target.closest('#stage')) return; // a tap on the art is handled below
+    if (UI.isArtOnly() && ev !== 'pointerdown') return; // in art-only, only a tap brings things back
     UI.wakeUp();
   }, { passive: true }));
 
@@ -185,11 +201,18 @@
   function initInput() {
     let sx = 0, sy = 0, st = 0;
     const stage = U.$('#stage');
-    stage.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; st = Date.now(); });
+    let wasOpen = false;
+    stage.addEventListener('pointerdown', e => {
+      sx = e.clientX; sy = e.clientY; st = Date.now();
+      // something open (panel, a card, the timer)? then this tap just closes it
+      wasOpen = document.body.classList.contains('panel-open') || (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen;
+    });
     stage.addEventListener('pointerup', e => {
-      const dx = e.clientX - sx, dy = e.clientY - sy;
-      if (Date.now() - st < 600 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { dx < 0 ? SS.show.advance() : SS.show.prev(); return; }
-      if (SS.planner && U.$('#panel').classList.contains('open')) SS.planner.close();
+      const dx = e.clientX - sx, dy = e.clientY - sy, dt = Date.now() - st;
+      if (dt < 600 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { dx < 0 ? SS.show.advance() : SS.show.prev(); return; }
+      if (Math.hypot(dx, dy) > 14 || dt > 700) return;           // a drag or a long press, not a tap
+      if (wasOpen) { SS.planner.close(); UI.wakeUp(); return; }
+      UI.toggleArt();
     });
     const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
     let seq = [];
@@ -212,7 +235,7 @@
       else if (k === 'r') SS.radar.openBig();
       else if (k === 'i') UI.info.toggle();
       else if (k === 'k') UI.toggleClock();
-      else if (k === 'h') UI.calmNow();
+      else if (k === 'h') UI.toggleArt();
     });
   }
 

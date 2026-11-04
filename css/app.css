@@ -419,6 +419,12 @@ body.calm #caption.peek { pointer-events: auto; }
 body.no-strip #caption { bottom: calc(var(--safe-b) + 4vh); }
 body.no-strip.strip-tab #caption { bottom: calc(var(--safe-b) + 58px); }
 
+/* Art only: one tap hides everything (clock too), the next tap brings it all back */
+#overlay { transition: opacity .55s var(--ease), visibility 0s; }
+body.art-only #overlay { opacity: 0; visibility: hidden; transition: opacity .55s var(--ease), visibility 0s linear .55s; }
+body.art-only .scrim { opacity: 0; }
+body.art-only #panelTab { transform: translate(100%, -50%); }
+
 /* ───────── Responsive ───────── */
 @media (max-width: 760px) {
   :root { --strip-h: 54px; }

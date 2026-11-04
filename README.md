@@ -62,10 +62,11 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 
 ## Using it
 
-- **Calm by default.** Tap (or move the mouse) and everything comes back: the control bar, weather, chips, caption and the flight tab. The control bar slides away after a few seconds; the rest fades after 20 s (⚙ → Slideshow → *Hide everything but the art after*: 10 s to 5 min, or never). Each new picture still shows its caption for a few seconds, so you always see where it came from.
+- **Tap the art** and everything disappears (clock, weather, caption, flight tab, controls), leaving only the art. **Tap again** and it all comes back. **H** does the same on a keyboard.
+- **Calm by default.** If everything is showing and you leave it alone, it fades on its own; a tap (or moving the mouse) brings it back: the control bar, weather, chips, caption and the flight tab. The control bar slides away after a few seconds; the rest fades after 20 s (⚙ → Slideshow → *Hide everything but the art after*: 10 s to 5 min, or never). Each new picture still shows its caption for a few seconds, so you always see where it came from.
 - **The clock stays** when everything else fades. The 🕒 button in the control bar (or **K**) hides or shows it.
 - **⏱ in the control bar** sets how often the picture changes: 30 sec up to 1 hr (default 2 min). Generative pieces stay at most 2 min.
-- **Swipe** or **← →** for the previous / next picture · **space** pause · **I** about this picture · **K** clock · **H** hide extras now · **T** transitions · **P** photos · **C** calendar · **R** radar · **S** settings · **F** full screen
+- **Swipe** or **← →** for the previous / next picture · **space** pause · **I** about this picture · **K** clock · **H** art only / show all · **T** transitions · **P** photos · **C** calendar · **R** radar · **S** settings · **F** full screen
 - **Tap a caption** (or ⓘ) for *About this picture*: the source, artist, date, medium, credit line, licence, which server the image file came from, and a link to the original.
 - **Weather** sits under the clock as a drop-down: tap to open UV, air quality, the sneeze outlook and more, or hide it. **Day | Week** at the top switches between today (with an hour-by-hour strip) and the next 7 days; tap any day for its hours, rain amount, wind and gusts, UV, air quality and sneeze outlook. It's also the **Weather** tab in the side panel. Location comes from your device ("Use my location"), a place you search for, or your flight spot.
 - **The flight tab** (bottom right, e.g. `✈ CX 1436 1:42`) brings up the flight strip; the ⌄ on the strip tucks it away again. Want the strip showing all the time, or not at all? ⚙ → Flights → *Flight strip*.
