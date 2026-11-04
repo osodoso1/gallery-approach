@@ -27,7 +27,7 @@
     if (SS.settings.calm > 0) calmT = setTimeout(goCalm, SS.settings.calm * 1000);
   };
   function goCalm() {
-    const cardOpen = (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen;
+    const cardOpen = (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen || (SS.env2 && SS.env2.openDay);
     if (busy() || (cardOpen && Date.now() - lastPoke < 60000)) { calmT = setTimeout(goCalm, 5000); return; }
     document.body.classList.add('calm');
     SS.radar && (SS.radar.closeCard(), SS.radar.tuck());

@@ -265,7 +265,7 @@
     calm: 20,                   // seconds of no touching before everything but the art (and clock) fades · 0 = never
     agendaChip: true,
     flight: { enabled: true, mode: 'auto', lat: 37.5636, lon: -122.2730, place: 'Foster City', airport: 'SFO', radius: 22, strip: 'tab' },   // strip: tab (tucked away) | always | off
-    env: { enabled: true, units: 'F', pollenKey: '', show: 'compact', loc: { mode: 'device', lat: null, lon: null, name: '' } },
+    env: { enabled: true, units: 'F', pollenKey: '', show: 'compact', view: 'day', loc: { mode: 'device', lat: null, lon: null, name: '' } },
     photoSync: true,
     serverUrl: '',              // optional: your Pi (http://pi.local:8080) or the Cloudflare Worker URL
     syncKey: '',                // optional: passphrase for syncing through the Cloudflare Worker

@@ -3,7 +3,7 @@
 (function () {
   'use strict';
   const U = SS.u, h = U.h;
-  const EN = (SS.env2 = { wx: null, aq: null, status: {}, locNote: '' });
+  const EN = (SS.env2 = { wx: null, aq: null, status: {}, locNote: '', openDay: null });
 
   const WMO = {
     0: ['Clear', 'sun'], 1: ['Mostly clear', 'sun'], 2: ['Partly cloudy', 'partly'], 3: ['Overcast', 'cloud'], 45: ['Fog', 'fog'], 48: ['Freezing fog', 'fog'],
@@ -32,24 +32,35 @@
   const TREE = [0.3, 0.6, 0.9, 1, 0.8, 0.4, 0.1, 0, 0, 0, 0, 0.1];   // Jan…Dec, northern hemisphere
   const GRASS = [0, 0, 0.1, 0.4, 0.9, 1, 0.7, 0.4, 0.2, 0.1, 0, 0];
   const WEED = [0, 0, 0, 0, 0, 0.1, 0.3, 0.7, 1, 0.7, 0.2, 0];
-  EN.sneeze = function () {
-    const w = EN.wx; if (!w) return null;
-    const L = EN.loc(), m = new Date().getMonth(), mm = L.lat < 0 ? (m + 6) % 12 : m;
-    const seasons = [['tree', TREE[mm]], ['grass', GRASS[mm]], ['weed', WEED[mm]]].sort((a, b) => b[1] - a[1]);
-    const [kind, top] = seasons[0];
+  function sneezeFor(o) {   // o: { month, lat, mph, rh, raining, pop, aqi, pm10 }
+    const mm = o.lat < 0 ? (o.month + 6) % 12 : o.month;
+    const [kind, top] = [['tree', TREE[mm]], ['grass', GRASS[mm]], ['weed', WEED[mm]]].sort((a, b) => b[1] - a[1])[0];
     const why = [];
     let score = top * 2.2;
     why.push(top >= 0.6 ? `${kind} pollen season` : top >= 0.3 ? `some ${kind} pollen around` : 'a quiet time of year for pollen');
-    const mph = w.wind == null ? 0 : isF() ? w.wind : w.wind / 1.609;
-    if (mph >= 12) { score += 0.8; why.push('breezy, which stirs pollen up'); } else if (mph >= 7) score += 0.3;
-    if (w.rh != null && w.rh < 40) { score += 0.4; why.push('dry air'); } else if (w.rh != null && w.rh > 80) score -= 0.3;
-    const raining = (w.code >= 51 && w.code <= 67) || (w.code >= 80 && w.code <= 82) || w.code >= 95;
-    if (raining) { score -= 1.2; why.push('rain is washing pollen out of the air'); } else if (w.rain >= 60) { score -= 0.3; why.push('rain likely later'); }
-    const aqi = EN.aq && EN.aq.aqi;
-    if (aqi > 100) { score += 1; why.push('poor air quality (smoke or smog irritate noses too)'); } else if (aqi > 50) { score += 0.4; why.push('moderate air quality'); }
-    if (EN.aq && EN.aq.pm10 > 50) { score += 0.4; why.push('dusty air'); }
+    if (o.mph >= 12) { score += 0.8; why.push('breezy, which stirs pollen up'); } else if (o.mph >= 7) score += 0.3;
+    if (o.rh != null && o.rh < 40) { score += 0.4; why.push('dry air'); } else if (o.rh != null && o.rh > 80) score -= 0.3;
+    if (o.raining) { score -= 1.2; why.push('rain washing pollen out of the air'); } else if (o.pop >= 60) { score -= 0.3; why.push('rain likely'); }
+    if (o.aqi > 100) { score += 1; why.push('poor air quality (smoke or smog irritate noses too)'); } else if (o.aqi > 50) { score += 0.4; why.push('moderate air quality'); }
+    if (o.pm10 > 50) { score += 0.4; why.push('dusty air'); }
     const level = U.clamp(Math.round(score), 0, 4);
     return { level, label: LEVELS[level][0], color: LEVELS[level][1], why };
+  }
+  const isRain = c => (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95;
+  const toMph = v => (v == null ? 0 : isF() ? v : v / 1.609);
+  EN.sneeze = function () {
+    const w = EN.wx; if (!w) return null;
+    return sneezeFor({ month: new Date().getMonth(), lat: EN.loc().lat, mph: toMph(w.wind), rh: w.rh, raining: isRain(w.code), pop: w.rain, aqi: EN.aq && EN.aq.aqi, pm10: EN.aq && EN.aq.pm10 });
+  };
+  // For a forecast day: daytime wind and humidity (9am–6pm), that day's worst air-quality hour.
+  EN.sneezeDay = function (d) {
+    const dayH = d.hours.filter(x => { const hh = +x.t.slice(11, 13); return hh >= 9 && hh <= 18; });
+    const rhs = dayH.map(x => x.rh).filter(v => v != null), winds = dayH.map(x => x.wind).filter(v => v != null);
+    const aq = EN.aq && EN.aq.byDay && EN.aq.byDay[d.date];
+    return sneezeFor({
+      month: +d.date.slice(5, 7) - 1, lat: EN.loc().lat, mph: toMph(winds.length ? winds.reduce((a, b) => a + b, 0) / winds.length : d.wind), rh: rhs.length ? Math.min(...rhs) : null,
+      raining: isRain(d.code) && d.pop >= 50, pop: d.pop, aqi: aq && aq.aqi, pm10: aq && aq.pm10,
+    });
   };
   const isF = () => (SS.settings.env.units || 'F') === 'F';
   const deg = v => (v == null ? '—' : Math.round(v) + '°');
@@ -93,20 +104,37 @@
   /* ── Data ── */
   async function loadWeather() {
     const { lat, lon } = EN.loc();
-    const d = await U.fetchJSON(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,uv_index&daily=temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset,precipitation_probability_max&temperature_unit=${isF() ? 'fahrenheit' : 'celsius'}&wind_speed_unit=${isF() ? 'mph' : 'kmh'}&timezone=auto&forecast_days=1`, { timeout: 12000 });
-    const c = d.current || {}, dy = d.daily || {};
+    const d = await U.fetchJSON(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+      + '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,uv_index'
+      + '&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,uv_index_max,sunrise,sunset,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max'
+      + '&hourly=temperature_2m,precipitation_probability,weather_code,is_day,relative_humidity_2m,wind_speed_10m'
+      + `&temperature_unit=${isF() ? 'fahrenheit' : 'celsius'}&wind_speed_unit=${isF() ? 'mph' : 'kmh'}&precipitation_unit=${isF() ? 'inch' : 'mm'}&timezone=auto&forecast_days=7`, { timeout: 12000 });
+    const c = d.current || {}, dy = d.daily || {}, hr = d.hourly || {};
+    const at = (a, i) => (a ? a[i] : null);
+    const hours = (hr.time || []).map((t, i) => ({ t, temp: at(hr.temperature_2m, i), pop: at(hr.precipitation_probability, i), code: at(hr.weather_code, i), day: at(hr.is_day, i), rh: at(hr.relative_humidity_2m, i), wind: at(hr.wind_speed_10m, i) }));
+    const days = (dy.time || []).map((date, i) => ({
+      date, code: at(dy.weather_code, i), hi: at(dy.temperature_2m_max, i), lo: at(dy.temperature_2m_min, i), feelsHi: at(dy.apparent_temperature_max, i), feelsLo: at(dy.apparent_temperature_min, i),
+      uv: at(dy.uv_index_max, i), pop: at(dy.precipitation_probability_max, i), amt: at(dy.precipitation_sum, i), wind: at(dy.wind_speed_10m_max, i), gust: at(dy.wind_gusts_10m_max, i),
+      sunrise: at(dy.sunrise, i), sunset: at(dy.sunset, i), hours: hours.filter(x => x.t.slice(0, 10) === date),
+    }));
     EN.wx = {
       t: c.temperature_2m, feels: c.apparent_temperature, rh: c.relative_humidity_2m, code: c.weather_code, day: c.is_day, wind: c.wind_speed_10m, uv: c.uv_index,
-      hi: dy.temperature_2m_max && dy.temperature_2m_max[0], lo: dy.temperature_2m_min && dy.temperature_2m_min[0], uvMax: dy.uv_index_max && dy.uv_index_max[0],
-      rain: dy.precipitation_probability_max && dy.precipitation_probability_max[0], sunrise: dy.sunrise && dy.sunrise[0], sunset: dy.sunset && dy.sunset[0], at: Date.now(),
+      hi: days[0] && days[0].hi, lo: days[0] && days[0].lo, uvMax: days[0] && days[0].uv, rain: days[0] && days[0].pop, sunrise: days[0] && days[0].sunrise, sunset: days[0] && days[0].sunset,
+      now: (c.time || '').slice(0, 13), days, hours, at: Date.now(),
     };
     EN.status.wx = 'ok';
   }
   async function loadAir() {
     const { lat, lon } = EN.loc();
-    const d = await U.fetchJSON(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10,ozone&timezone=auto`, { timeout: 12000 });
-    const c = d.current || {};
-    EN.aq = { aqi: c.us_aqi, pm25: c.pm2_5, pm10: c.pm10, o3: c.ozone, at: Date.now() };
+    const d = await U.fetchJSON(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5,pm10,ozone&hourly=us_aqi,pm10&forecast_days=5&timezone=auto`, { timeout: 12000 });
+    const c = d.current || {}, hr = d.hourly || {};
+    const byDay = {};   // the forecast's worst hour each day
+    (hr.time || []).forEach((t, i) => {
+      const k = t.slice(0, 10), a = hr.us_aqi && hr.us_aqi[i], p = hr.pm10 && hr.pm10[i], o = byDay[k] || (byDay[k] = { aqi: null, pm10: null });
+      if (a != null && (o.aqi == null || a > o.aqi)) o.aqi = a;
+      if (p != null && (o.pm10 == null || p > o.pm10)) o.pm10 = p;
+    });
+    EN.aq = { aqi: c.us_aqi, pm25: c.pm2_5, pm10: c.pm10, o3: c.ozone, byDay, at: Date.now() };
     EN.status.aq = c.us_aqi != null ? 'ok' : 'no data here';
   }
   async function refresh(which) {
@@ -133,7 +161,7 @@
     refresh();
     setInterval(() => refresh(['wx']), 15 * 60e3);
     setInterval(() => refresh(['aq']), 30 * 60e3);
-    SS.on('settings', p => { if (p === 'cloud' || /^env\.(loc|units|enabled)|^flight\.(lat|lon)/.test(p || '')) refresh(); else if (/^env/.test(p || '')) render(); });
+    SS.on('settings', p => { if (p === 'cloud' || /^env\.(loc|units|enabled)|^flight\.(lat|lon)/.test(p || '')) refresh(); else if (/^env/.test(p || '')) rerender(); });
   };
 
   function chip(label, value, color) { return h('span', { class: 'wx-chip' }, h('i', { style: { background: color } }), h('em', null, label), value); }
@@ -148,25 +176,77 @@
     if (sn) out.push(chip('Sneeze', sn.label, sn.color));
     return out;
   }
+  const iconFor = (code, day) => { const ic = (WMO[code] || ['', 'cloud'])[1]; return day === 0 && (ic === 'sun' || ic === 'partly') ? 'moon' : ic; };
+  const hourLbl = t => { const hh = +t.slice(11, 13); return SS.settings.clock24 ? String(hh).padStart(2, '0') : `${hh % 12 || 12}${hh < 12 ? 'a' : 'p'}`; };
+  const dayName = (d, i, long) => (i === 0 ? 'Today' : i === 1 && long ? 'Tomorrow' : new Date(d.date + 'T12:00').toLocaleDateString([], { weekday: long ? 'long' : 'short' }));
+  const wind = v => (v == null ? '—' : Math.round(v) + (isF() ? ' mph' : ' km/h'));
+  const amount = v => (v == null ? '' : isF() ? (v < 0.01 ? '' : v.toFixed(2) + ' in') : (v < 0.1 ? '' : v.toFixed(1) + ' mm'));
+  const row = (k, v) => h('div', { class: 'ec-row' }, h('span', null, k), h('b', null, v));
+  const tm = s => (s ? U.fmt.time(new Date(s), SS.settings.clock24) : '—');
+
+  // Hour-by-hour strip: the next 24 hours for today, or the whole day (every 2 hours) for a later day.
+  function hourStrip(list, step) {
+    const box = h('div', { class: 'wk-hours' });
+    list.filter((x, i) => i % step === 0).forEach(x => box.append(h('div', { class: 'wk-hr' },
+      h('span', null, hourLbl(x.t)), U.svg(ICON[iconFor(x.code, x.day)]), h('b', null, deg(x.temp)), h('i', null, x.pop >= 20 ? x.pop + '%' : ''))));
+    return box;
+  }
+  function sneezeCard(sn, title) {
+    return h('div', { class: 'wx-sneeze', style: { '--c': sn.color } },
+      h('div', { class: 'wx-sneeze-h' }, h('span', null, title), h('b', null, sn.label)),
+      h('div', { class: 'wx-sneeze-why' }, 'Why: ' + sn.why.join(' · ')));
+  }
+  function dayView() {
+    const w = EN.wx, box = h('div');
+    const uvc = EN.uvCat(w.uvMax), ac = EN.aq && EN.aqiCat(EN.aq.aqi);
+    const next = w.hours.filter(x => x.t.slice(0, 13) >= w.now).slice(0, 24);
+    if (next.length) box.append(hourStrip(next, 2));
+    box.append(
+      row('Feels like', deg(w.feels)), row('High / low', `${deg(w.hi)} / ${deg(w.lo)}`), row('Chance of rain', w.rain != null ? w.rain + '%' : '—'),
+      row('Humidity · wind', `${w.rh != null ? Math.round(w.rh) + '%' : '—'} · ${wind(w.wind)}`),
+      row('UV now · today\'s max', `${w.uv != null ? Math.round(w.uv) : '—'} · ${w.uvMax != null ? Math.round(w.uvMax) : '—'}${uvc ? ' (' + uvc[0] + ')' : ''}`),
+      EN.aq && EN.aq.aqi != null ? row('Air quality (US AQI)', `${Math.round(EN.aq.aqi)}${ac ? ' · ' + ac[0] : ''}`) : row('Air quality', EN.status.aq || '—'),
+      EN.aq && EN.aq.pm25 != null ? row('PM2.5 · ozone', `${EN.aq.pm25.toFixed(1)} · ${EN.aq.o3 != null ? Math.round(EN.aq.o3) : '—'} µg/m³`) : '',
+      row('Sunrise · sunset', `${tm(w.sunrise)} · ${tm(w.sunset)}`));
+    const sn = EN.sneeze();
+    if (sn) box.append(sneezeCard(sn, 'Sneeze outlook'), h('div', { class: 'note' }, 'An estimate from the typical pollen season, wind, humidity, rain and air quality. It isn\'t a pollen count.'));
+    return box;
+  }
+  function weekView() {
+    const w = EN.wx, days = w.days || [], box = h('div', { class: 'wk' });
+    const lo = Math.min(...days.map(d => d.lo).filter(v => v != null)), hi = Math.max(...days.map(d => d.hi).filter(v => v != null)), span = Math.max(1, hi - lo);
+    days.forEach((d, i) => {
+      const open = EN.openDay === d.date;
+      const l = ((d.lo - lo) / span) * 100, r = ((d.hi - lo) / span) * 100;
+      const bar = h('span', { class: 'wk-bar' }, h('i', { style: { left: l + '%', width: Math.max(4, r - l) + '%' } }));
+      if (i === 0 && w.t != null) bar.append(h('b', { style: { left: U.clamp((w.t - lo) / span * 100, 0, 100) + '%' } }));
+      box.append(h('button', { class: 'wk-row' + (open ? ' open' : ''), 'aria-expanded': open ? 'true' : 'false', onclick: e => { e.stopPropagation(); EN.openDay = open ? null : d.date; rerender(); } },
+        h('span', { class: 'wk-day' }, dayName(d, i)), U.svg(ICON[iconFor(d.code, 1)]), h('span', { class: 'wk-pop' }, d.pop >= 20 ? d.pop + '%' : ''),
+        h('span', { class: 'wk-lo' }, deg(d.lo)), bar, h('span', { class: 'wk-hi' }, deg(d.hi))));
+      if (open) {
+        const uvc = EN.uvCat(d.uv), aq = EN.aq && EN.aq.byDay && EN.aq.byDay[d.date], ac = aq && EN.aqiCat(aq.aqi);
+        const sn = EN.sneezeDay(d);
+        box.append(h('div', { class: 'wk-detail', onclick: e => e.stopPropagation() },
+          h('div', { class: 'wk-title' }, `${dayName(d, i, true)}${i > 1 ? ', ' + new Date(d.date + 'T12:00').toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''} · ${(WMO[d.code] || ['—'])[0]}`),
+          d.hours.length ? hourStrip(i === 0 ? d.hours.filter(x => x.t.slice(0, 13) >= w.now) : d.hours, 2) : '',
+          row('High / low', `${deg(d.hi)} / ${deg(d.lo)}`), row('Feels like', `${deg(d.feelsHi)} / ${deg(d.feelsLo)}`),
+          row('Chance of rain', `${d.pop != null ? d.pop + '%' : '—'}${amount(d.amt) ? ' · ' + amount(d.amt) : ''}`),
+          row('Wind · gusts', `${wind(d.wind)} · ${wind(d.gust)}`), row('UV max', d.uv != null ? `${Math.round(d.uv)}${uvc ? ' · ' + uvc[0] : ''}` : '—'),
+          aq && aq.aqi != null ? row('Air quality (worst hour)', `${Math.round(aq.aqi)}${ac ? ' · ' + ac[0] : ''}`) : '',
+          row('Sunrise · sunset', `${tm(d.sunrise)} · ${tm(d.sunset)}`),
+          sneezeCard(sn, 'Sneeze outlook')));
+      }
+    });
+    box.append(h('div', { class: 'note' }, 'Tap a day for hour-by-hour details. Air quality is forecast about 5 days out.'));
+    return box;
+  }
   function details(compact) {
-    const w = EN.wx, row = (k, v) => h('div', { class: 'ec-row' }, h('span', null, k), h('b', null, v));
-    const t = s => (s ? U.fmt.time(new Date(s), SS.settings.clock24) : '—');
-    const box = h('div', { class: 'wx-body' });
-    const L = EN.loc();
+    const w = EN.wx, box = h('div', { class: 'wx-body' });
     if (w) {
-      const uvc = EN.uvCat(w.uvMax), ac = EN.aq && EN.aqiCat(EN.aq.aqi);
-      box.append(
-        row('Feels like', deg(w.feels)), row('High / low', `${deg(w.hi)} / ${deg(w.lo)}`), row('Chance of rain', w.rain != null ? w.rain + '%' : '—'),
-        row('Humidity · wind', `${w.rh != null ? Math.round(w.rh) + '%' : '—'} · ${w.wind != null ? Math.round(w.wind) + (isF() ? ' mph' : ' km/h') : '—'}`),
-        row('UV now · today\'s max', `${w.uv != null ? Math.round(w.uv) : '—'} · ${w.uvMax != null ? Math.round(w.uvMax) : '—'}${uvc ? ' (' + uvc[0] + ')' : ''}`),
-        EN.aq && EN.aq.aqi != null ? row('Air quality (US AQI)', `${Math.round(EN.aq.aqi)}${ac ? ' · ' + ac[0] : ''}`) : row('Air quality', EN.status.aq || '—'),
-        EN.aq && EN.aq.pm25 != null ? row('PM2.5 · ozone', `${EN.aq.pm25.toFixed(1)} · ${EN.aq.o3 != null ? Math.round(EN.aq.o3) : '—'} µg/m³`) : '',
-        row('Sunrise · sunset', `${t(w.sunrise)} · ${t(w.sunset)}`));
-      const sn = EN.sneeze();
-      if (sn) box.append(h('div', { class: 'wx-sneeze', style: { '--c': sn.color } },
-        h('div', { class: 'wx-sneeze-h' }, h('span', null, 'Sneeze outlook'), h('b', null, sn.label)),
-        h('div', { class: 'wx-sneeze-why' }, 'Why: ' + sn.why.join(' · ')),
-        h('div', { class: 'note' }, 'An estimate from the typical pollen season, wind, humidity, rain and air quality. It isn\'t a pollen count.')));
+      const view = SS.settings.env.view === 'week' ? 'week' : 'day';
+      const seg = h('div', { class: 'seg wx-view' });
+      [['day', 'Day'], ['week', 'Week']].forEach(([v, l]) => seg.append(h('button', { class: view === v ? 'on' : '', onclick: e => { e.stopPropagation(); SS.setSetting('env.view', v); } }, l)));
+      box.append(seg, view === 'week' && (w.days || []).length ? weekView() : dayView());
     } else {
       box.append(h('p', { class: 'note' }, SS.env.cspBlocked ? "The claude.ai preview can't reach the weather service. On the website or Pi version this fills in automatically." : `Weather isn't loading (${EN.status.wx || 'connecting'}).`));
     }
@@ -174,6 +254,8 @@
     box.append(h('div', { class: 'fc-src' }, 'Weather & air quality: ', h('a', { href: 'https://open-meteo.com/', target: '_blank', rel: 'noopener noreferrer' }, 'Open-Meteo'), ' (model data, CC BY 4.0). Estimates, not a sensor at your spot.'));
     return box;
   }
+  // Re-draw both places the weather shows, keeping your scroll position.
+  function rerender() { render(); if (SS.planner && SS.planner.tab === 'weather' && U.$('#panel').classList.contains('open')) SS.planner.render(); }
   function locationControls() {
     const L = EN.loc();
     const wrap = h('div', { class: 'wx-loc' });
@@ -206,11 +288,13 @@
     if (!host) return;
     const s = SS.settings.env, show = s.enabled ? (s.show || 'compact') : 'off';
     host.hidden = show === 'off';
-    if (host.hidden) return;
+    if (host.hidden) { document.body.classList.remove('wx-open'); return; }
     const keepFocus = host.contains(document.activeElement) && document.activeElement.tagName === 'INPUT';
     if (keepFocus) return; // don't rebuild while you're typing a place
+    const oldDrop = host.querySelector('.wx-drop'), keepScroll = oldDrop ? oldDrop.scrollTop : 0;
     host.innerHTML = '';
     const w = EN.wx, open = show === 'open';
+    document.body.classList.toggle('wx-open', open);
     const [desc, ic] = (w && WMO[w.code]) || ['', 'cloud'];
     const icon = w && !w.day && (ic === 'sun' || ic === 'partly') ? 'moon' : ic;
     const head = h('button', { class: 'wx-head' + (open ? ' open' : ''), 'aria-expanded': open ? 'true' : 'false', onclick: e => { e.stopPropagation(); SS.setSetting('env.show', open ? 'compact' : 'open'); } },
@@ -223,6 +307,8 @@
       const dd = h('div', { class: 'wx-drop', onclick: e => e.stopPropagation() }, details(true),
         h('div', { class: 'wx-loc-btns' }, h('button', { class: 'btn small ghost', onclick: () => SS.setSetting('env.show', 'compact') }, 'Collapse'), h('button', { class: 'btn small ghost', onclick: () => { SS.setSetting('env.show', 'off'); U.toast('Weather hidden. Turn it back on in the panel (Weather tab) or Settings.'); } }, 'Hide weather')));
       host.append(dd);
+      dd.scrollTop = keepScroll;
+      if (keepScroll) dd.style.animation = 'none';
     }
     if (SS.planner && SS.planner.tab === 'weather') SS.emit('agenda');
   }
