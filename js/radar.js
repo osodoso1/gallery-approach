@@ -250,26 +250,49 @@
     CP.heading = (Math.atan2(CP.sx, CP.sy) * 180 / Math.PI + 360) % 360;
     CP.at = Date.now();
   }
-  R.compassOn = async function () {
-    if (!window.isSecureContext) { U.toast('The compass needs the https:// version of the page'); return; }
-    if (typeof DeviceOrientationEvent === 'undefined') { U.toast('This device has no compass'); return; }
+  // quiet: switched on by itself (not by tapping Compass), so no fuss if this device can't do it
+  R.compassOn = async function (opts = {}) {
+    const say = msg => { if (!opts.quiet) U.toast(msg); };
+    if (!window.isSecureContext) { say('The compass needs the https:// version of the page'); return; }
+    if (typeof DeviceOrientationEvent === 'undefined') { say('This device has no compass'); return; }
     if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      try { if ((await DeviceOrientationEvent.requestPermission()) !== 'granted') { U.toast(/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) ? 'Compass access was turned down. Close and reopen the page to be asked again, or check Settings → Apps → Safari → Motion & Orientation Access.' : 'Compass access was turned down. Allow motion sensors for this site in the browser\'s site settings.'); return; } }
-      catch (err) { U.toast('Couldn\'t ask for compass access here'); return; }
+      try { if ((await DeviceOrientationEvent.requestPermission()) !== 'granted') { say(/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent) ? 'Compass access was turned down. Close and reopen the page to be asked again, or check Settings → Apps → Safari → Motion & Orientation Access.' : 'Compass access was turned down. Allow motion sensors for this site in the browser\'s site settings.'); return; } }
+      catch (err) { say('Couldn\'t ask for compass access here'); return; }
     }
+    if (CP.on) return;
     const sp = F.spot();
     CP.on = true; CP.at = 0; CP.heading = null; CP.decl = declination(sp.lat, sp.lon);
     U.store.set('compassPref', true);
     addEventListener('deviceorientationabsolute', onOrient, true);
     addEventListener('deviceorientation', onOrient, true);
     compassBtn && compassBtn.classList.add('on');
-    setTimeout(() => { if (CP.on && !CP.at) { U.toast('No compass reading. Phones and tablets have one; most laptops and Pis don\'t.'); R.compassOff(); } }, 3500);
+    setTimeout(() => { if (CP.on && !CP.at) { if (opts.quiet) stopListening(); else { U.toast('No compass reading. Phones and tablets have one; most laptops and Pis don\'t.'); R.compassOff(); } } }, 3500);
     // a fixed spot? then work out directions from where you actually are, if you're nearby
     if (!sp.device && navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
       const la = pos.coords.latitude, lo = pos.coords.longitude, away = G.dist(la, lo, sp.lat, sp.lon);
       if (away < 40) { CP.obs = { lat: la, lon: lo, place: 'You', device: true }; CP.decl = declination(la, lo); }
       else U.toast(`You're ${Math.round(away)} nm from ${sp.place}, so directions are worked out from there`);
     }, () => {}, { timeout: 8000, maximumAge: 120000 });
+  };
+  function stopListening() {
+    CP.on = false; CP.heading = null; CP.obs = null;
+    removeEventListener('deviceorientationabsolute', onOrient, true);
+    removeEventListener('deviceorientation', onOrient, true);
+    compassBtn && compassBtn.classList.remove('on');
+    if (bigFacing) bigFacing.hidden = true;
+  }
+  // The compass is on unless you've switched it off. Phones that need permission (iPhone, iPad) are asked at
+  // your first tap, since browsers only allow that question in answer to a tap.
+  const wantCompass = () => U.store.get('compassPref', true);
+  const touchy = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  R.autoCompass = async function () {
+    if (!wantCompass() || CP.on || !touchy || typeof DeviceOrientationEvent === 'undefined' || !window.isSecureContext) return;
+    if (typeof DeviceOrientationEvent.requestPermission !== 'function') { R.compassOn({ quiet: true }); return; }
+    // Already allowed (most Android browsers, or an iPhone that said yes this session)? Then start now, no tap needed.
+    try { if ((await DeviceOrientationEvent.requestPermission()) === 'granted') { R.compassOn({ quiet: true }); return; } } catch (e) { /* needs a tap first */ }
+    let asked = false;
+    const ask = () => { if (asked) return; asked = true; removeEventListener('touchend', ask, true); removeEventListener('click', ask, true); if (wantCompass() && !CP.on) R.compassOn({ quiet: true }); };
+    addEventListener('touchend', ask, true); addEventListener('click', ask, true);
   };
   R.compassOff = function () {
     CP.on = false; CP.heading = null; CP.obs = null;
@@ -460,7 +483,7 @@
     host.append(win);
     host.onclick = e => { if (e.target === host) R.closeBig(); };
     host.hidden = false; R.bigOpen = true;
-    if (U.store.get('compassPref', false) && !CP.on) R.compassOn();
+    if (wantCompass() && !CP.on) R.compassOn({ quiet: true });
     renderList();
   };
   R.closeBig = () => { U.$('#radarBig').hidden = true; R.bigOpen = false; if (R.cardOpen && U.$('#flightCard').classList.contains('top')) R.closeCard(); };

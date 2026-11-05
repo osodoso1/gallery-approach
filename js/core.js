@@ -269,6 +269,7 @@
     europeanaKey: '',           // optional: free key from pro.europeana.eu for museum video
     clock: true,
     clock24: false,
+    tapView: 'art',             // a tap on the art leaves: 'art' (art only) | 'clock' (clock & date) | 'cycle' (clock & date, then art only)
     calm: 20,                   // seconds of no touching before everything but the art (and clock) fades · 0 = never
     agendaChip: true,
     flight: { enabled: true, mode: 'auto', lat: 37.5636, lon: -122.2730, place: 'Foster City', airport: 'SFO', radius: 22, strip: 'tab', locMode: 'device' },   // strip: tab (tucked away) | always | off

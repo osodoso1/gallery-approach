@@ -101,11 +101,23 @@
     const variant = t.variants ? (opts.variant && t.variants.includes(opts.variant) ? opts.variant : U.pick(t.variants)) : null;
     const speed = opts.speed || SPEED[SS.settings.speed] || 1;
     const ctx = new Ctx(layer, A, B, st, Math.round(t.base * speed), variant);
+    ctx.from = +opts.from || 0;   // a swipe hands over from wherever the finger let go
     FX.running = ctx;
     let p;
     try { p = Promise.resolve(t.run(ctx)); } catch (e) { console.warn('[fx]', id, e); p = Promise.resolve(); }
     return p.catch(e => console.warn('[fx]', id, e)).then(() => { if (FX.running === ctx) FX.running = null; return { layer, id: t.id, name: t.name, variant }; });
   };
+  // Swipe: not one of the random transitions. The picture keeps going the way your finger threw it
+  // and the next one follows right behind (left = next, right = back).
+  FX.byId.swipe = { id: 'swipe', name: 'Swipe', group: 'gesture', base: 560, variants: ['left', 'right'], run: x => {
+    const d = x.variant === 'right' ? 1 : -1, f = U.clamp(x.from, -1, 1), e = 'cubic-bezier(.2,.75,.25,1)';
+    const dur = Math.max(260, Math.round(x.dur * (1 - Math.abs(f) * 0.6)));
+    const a = x.face(x.A), b = x.face(x.B);
+    return Promise.all([
+      x.anim(a, [{ transform: `translateX(${f * 100}%)` }, { transform: `translateX(${d * 100}%)` }], { easing: e, duration: dur }),
+      x.anim(b, [{ transform: `translateX(${(f - d) * 100}%)` }, { transform: 'translateX(0)' }], { easing: e, duration: dur }),
+    ]);
+  } };
   FX.skip = () => { if (FX.running) FX.running.finish(); };
   FX.label = (id, variant) => { const t = FX.byId[id]; return t ? t.name + (variant ? ' · ' + variant.replace(/-/g, ' ') : '') : id; };
 

@@ -86,7 +86,9 @@
       const A = C.snapshot(S.cur, kbP(S.cur), st);
       const B = C.snapshot(nx, 0, st);
       SS.ui && SS.ui.caption.hide();
-      const playing = SS.fx.play(fxId, A, B, st, { host: U.$('#fx'), variant: opts.variant, speed: S.cur ? null : 1.4 });
+      const from = typeof opts.from === 'function' ? opts.from() : opts.from;
+      if (S.cur && S.cur.el) S.cur.el.style.transform = '';      // the transition layer takes over from a dragged picture
+      const playing = SS.fx.play(fxId, A, B, st, { host: U.$('#fx'), variant: opts.variant, speed: S.cur ? null : 1.4, from });
       // The transition layer now covers the stage, so the old slide can go.
       const old = S.cur;
       if (old) { old.kbAnim && old.kbAnim.cancel(); old.el && old.el.remove(); old.live && (old.live.stop(), old.live.dispose && old.live.dispose()); }
@@ -110,15 +112,34 @@
     schedule(ok ? null : 3000);
   };
 
-  S.prev = async function () {
-    if (S.busy || S.hist.length < 2) return;
+  S.canGoBack = () => S.hist.length >= 2 && (S.histIdx ?? S.hist.length - 1) > 0;
+  S.prev = async function (opts = {}) {
+    if (S.busy) return false;
+    if (!S.canGoBack()) { U.toast('That\'s the first picture so far'); return false; }
     const idx = (S.histIdx ?? S.hist.length - 1) - 1;
-    if (idx < 0) return;
     S.histIdx = idx;
     try {
       const sl = await prepare(S.hist[idx]);
-      return S.advance({ slide: sl, fx: 'push', variant: 'right', fromHistory: true });
-    } catch (e) { U.toast("Couldn't reload that one"); }
+      await S.advance({ slide: sl, fx: opts.fx || 'push', variant: 'right', fromHistory: true, from: opts.from });
+      return true;
+    } catch (e) { U.toast("Couldn't reload that one"); return false; }
+  };
+
+  /* ── Swipe: drag the picture; let go past the line (or flick) and it goes. Left = next, right = back. ── */
+  const easeBack = (el, f) => { if (!el) return; el.style.transform = ''; if (f) el.animate([{ transform: `translateX(${f * 100}%)` }, { transform: 'translateX(0)' }], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' }); };
+  S.drag = f => { const el = S.cur && S.cur.el; if (el && !S.busy) el.style.transform = `translateX(${f * 100}%)`; };
+  S.snapBack = f => easeBack(S.cur && S.cur.el, f);
+  S.swipe = async function (dir, f) {
+    const el = S.cur && S.cur.el;
+    if (S.busy) { SS.fx.skip(); for (let i = 0; i < 20 && S.busy; i++) await U.sleep(50); }
+    if (dir === 'prev' && !S.canGoBack()) { easeBack(el, f); U.toast('That\'s the first picture so far'); return; }
+    // if the next picture isn't ready yet, slide this one back rather than leave it hanging
+    let held = f;
+    const t = setTimeout(() => { held = 0; easeBack(el, f); }, 450);
+    try {
+      if (dir === 'next') await S.advance({ fx: 'swipe', variant: 'left', from: () => held });
+      else await S.prev({ fx: 'swipe', from: () => held });
+    } finally { clearTimeout(t); if (S.cur && S.cur.el === el) easeBack(el, held); }
   };
 
   // How long the current picture stays. Generative pieces are a treat, so they're capped (2 min by default).

@@ -6,7 +6,7 @@
   SS.on('ready', () => { const b = U.$('#boot'); if (b) { b.classList.add('gone'); setTimeout(() => b.remove(), 1500); } });
   await SS.server.detect();
   SS.sync.pull();
-  SS.radar.init();
+  SS.radar.init(); SS.radar.autoCompass();   // the compass is on unless you switch it off
   SS.planner.init();
   SS.env2.init();
   SS.flights.start();

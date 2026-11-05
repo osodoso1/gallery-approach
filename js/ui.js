@@ -27,11 +27,11 @@
     if (SS.settings.calm > 0) calmT = setTimeout(goCalm, SS.settings.calm * 1000);
   };
   function goCalm() {
-    const cardOpen = (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen || UI.genres.isOpen || (SS.env2 && SS.env2.openDay);
+    const cardOpen = (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen || UI.genres.isOpen || UI.view.isOpen || (SS.env2 && SS.env2.openDay);
     if (busy() || (cardOpen && Date.now() - lastPoke < 60000)) { calmT = setTimeout(goCalm, 5000); return; }
     document.body.classList.add('calm');
     SS.radar && (SS.radar.closeCard(), SS.radar.tuck());
-    UI.info.close(); UI.timer.close(); UI.genres.close();
+    UI.info.close(); UI.timer.close(); UI.genres.close(); UI.view.close();
     SS.emit('calm', true);
   }
   UI.calmNow = () => { clearTimeout(calmT); clearTimeout(idleT); document.body.classList.remove('awake'); goCalm(); };
@@ -39,19 +39,30 @@
   /* ── Tap the art: everything goes, leaving only the art. Tap again: everything comes back. ── */
   const B = document.body;
   UI.isArtOnly = () => B.classList.contains('art-only');
-  UI.artOnly = function () {
+  UI.isClockOnly = () => B.classList.contains('clock-only');
+  const hideRest = () => {
     clearTimeout(calmT); clearTimeout(idleT);
-    B.classList.remove('awake', 'calm'); B.classList.add('art-only');
+    B.classList.remove('awake', 'calm', 'art-only', 'clock-only');
     SS.radar && (SS.radar.closeCard(), SS.radar.tuck());
-    UI.info.close(); UI.timer.close(); UI.genres.close();
+    UI.info.close(); UI.timer.close(); UI.genres.close(); UI.view.close();
   };
-  UI.showAll = function () { B.classList.remove('art-only'); UI.wakeUp(); };
-  // Anything hidden (art only, or the timer has faded things) → show it all; everything showing → art only.
-  UI.toggleArt = () => (UI.isArtOnly() || UI.isCalm() ? UI.showAll() : UI.artOnly());
+  UI.artOnly = function () { hideRest(); B.classList.add('art-only'); };
+  // Just the time and date over the art: everything else (weather, chips, caption, flight tab, controls) goes.
+  UI.clockOnly = function () { hideRest(); B.classList.add('clock-only'); UI.tickClock(); };
+  UI.showAll = function () { const was = UI.isClockOnly(); B.classList.remove('art-only', 'clock-only'); if (was) UI.tickClock(); UI.wakeUp(); };
+  // A tap on the art: anything hidden → show it all; everything showing → art only, or the clock and date
+  // (⚙ → Display → Tapping the art). "Both in turn" goes everything → clock & date → art only → everything.
+  UI.toggleArt = () => {
+    const m = SS.settings.tapView || 'art';
+    if (UI.isClockOnly()) return m === 'cycle' ? UI.artOnly() : UI.showAll();
+    if (UI.isArtOnly() || UI.isCalm()) return UI.showAll();
+    return m === 'art' ? UI.artOnly() : UI.clockOnly();
+  };
 
   // Double-tap anywhere that isn't a button (the art, the open weather panel, the caption…): everything goes.
-  const NO_DBL = 'button, a, input, select, textarea, label, .wx-chips, .clk-next, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #genrePop, #hud, #panelTab, #stripTab, #flightStrip';
+  const NO_DBL = 'button, a, input, select, textarea, label, .wx-chips, .clk-next, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #genrePop, #viewPop, #hud, #panelTab, #stripTab, #flightStrip';
   let lastUp = { t: 0, x: 0, y: 0 };
+  UI.resetDbl = () => { lastUp.t = 0; };
   addEventListener('pointerup', e => {
     if (!e.isPrimary || UI.gameOpen) return;
     if (e.target.closest && e.target.closest(NO_DBL)) { lastUp.t = 0; return; }
@@ -64,7 +75,7 @@
     if (e.pointerType) lastPtr = e.pointerType;
     if (ev === 'pointermove' && e.pointerType !== 'mouse') return;
     if (ev === 'pointerdown' && e.target.closest && e.target.closest('#stage')) return; // a tap on the art is handled below
-    if (UI.isArtOnly() && ev !== 'pointerdown') return; // in art-only, only a tap brings things back
+    if ((UI.isArtOnly() || UI.isClockOnly()) && ev !== 'pointerdown') return; // in art-only or clock-only, only a tap brings things back
     UI.wakeUp();
   }, { passive: true }));
 
@@ -76,7 +87,7 @@
         prev: () => SS.show.prev(), next: () => SS.show.advance(), play: () => SS.show.toggle(),
         fx: () => SS.settingsUI.open('fx'), photos: () => SS.settingsUI.open('photos'), panel: () => SS.planner.toggle(),
         radar: () => SS.radar.openBig(), settings: () => SS.settingsUI.open(), full: () => UI.fullscreen(),
-        info: () => UI.info.toggle(), timer: () => UI.timer.toggle(), clock: () => UI.toggleClock(), genres: () => UI.genres.toggle(),
+        info: () => UI.info.toggle(), timer: () => UI.timer.toggle(), clock: () => UI.view.toggle(), genres: () => UI.genres.toggle(),
       }[b.dataset.act] || (() => {}))();
     });
     U.$('#panelTab').addEventListener('click', () => SS.planner.open());
@@ -115,7 +126,7 @@
       item.credit || item.detail ? h('div', { class: 'cap-credit' }, U.truncate(U.text([item.detail, item.credit].filter(Boolean).join(' · ')), 160)) : '');
     requestAnimationFrame(() => requestAnimationFrame(() => { el.classList.add('on'); peek(); }));
   };
-  U.$('#caption').addEventListener('click', e => { e.stopPropagation(); UI.info.open(capItem); });
+  U.$('#caption').addEventListener('click', e => { e.stopPropagation(); if (UI.swipedAt && Date.now() - UI.swipedAt < 500) return; UI.info.open(capItem); });
   U.$('#caption').addEventListener('keydown', e => { if (e.key === 'Enter') UI.info.open(capItem); });
 
   /* ── About this picture: where it came from, in full ── */
@@ -162,6 +173,7 @@
     if (info.isOpen && !e.target.closest('#infoCard') && !e.target.closest('#caption') && !e.target.closest('#hud')) info.close();
     if (timer.isOpen && !e.target.closest('#timerPop') && !e.target.closest('#hud')) timer.close();
     if (UI.genres.isOpen && !e.target.closest('#genrePop') && !e.target.closest('#hud')) UI.genres.close();
+    if (UI.view.isOpen && !e.target.closest('#viewPop') && !e.target.closest('#hud')) UI.view.close();
   });
 
   /* ── Picture timer ── */
@@ -178,7 +190,31 @@
     pop.hidden = false; timer.isOpen = true;
   };
   timer.close = () => { U.$('#timerPop').hidden = true; timer.isOpen = false; };
-  timer.toggle = () => (timer.isOpen ? timer.close() : (UI.genres.close(), timer.open()));
+  timer.toggle = () => (timer.isOpen ? timer.close() : (UI.genres.close(), UI.view.close(), timer.open()));
+
+  /* ── What's on screen: everything, just the clock and date, or just the art (the 🕒 button) ── */
+  const view = (UI.view = { isOpen: false });
+  view.open = function () {
+    const pop = U.$('#viewPop'); pop.innerHTML = '';
+    const s = SS.settings, cur = UI.isArtOnly() ? 'art' : UI.isClockOnly() ? 'clock' : 'all';
+    const pick = (id, label, icon, fn) => h('button', { class: 'vp-btn' + (cur === id ? ' on' : ''), onclick: e => { e.stopPropagation(); view.close(); fn(); } }, h('span', { class: 'vp-ic', html: icon }), label);
+    const sw = h('input', { type: 'checkbox', 'aria-label': 'Clock' }); sw.checked = !!s.clock;
+    sw.addEventListener('change', () => { SS.setSetting('clock', sw.checked); UI.tickClock(); });
+    const tap = h('div', { class: 'seg vp-seg' });
+    [['art', 'Art only'], ['clock', 'Clock & date'], ['cycle', 'Both in turn']].forEach(([v, l]) => tap.append(h('button', { class: (s.tapView || 'art') === v ? 'on' : '', onclick: e => { e.stopPropagation(); SS.setSetting('tapView', v); view.open(); } }, l)));
+    pop.append(
+      h('div', { class: 'tp-h' }, 'On screen'),
+      h('div', { class: 'vp-grid' },
+        pick('all', 'Everything', '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M6 8h5M6 11h3M6 16h12"/></svg>', () => UI.showAll()),
+        pick('clock', 'Clock & date', '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>', () => UI.clockOnly()),
+        pick('art', 'Art only', '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>', () => UI.artOnly())),
+      h('label', { class: 'gp-sw vp-row' }, h('span', { class: 'switch' }, sw, h('span')), h('span', null, h('b', null, 'Clock'), h('small', null, 'Time and date when everything is showing (K)'))),
+      h('div', { class: 'vp-row2' }, h('small', null, 'A tap on the art leaves'), tap),
+      h('div', { class: 'note' }, 'Tap the art again to bring everything back. Double-tap always leaves just the art. Keys: H art only · D clock & date · K clock.'));
+    pop.hidden = false; view.isOpen = true;
+  };
+  view.close = () => { U.$('#viewPop').hidden = true; view.isOpen = false; };
+  view.toggle = () => (view.isOpen ? view.close() : (UI.timer.close(), UI.genres.close(), UI.info.close(), view.open()));
 
   /* ── Genres drop-down: tick what's in the mix, and shuffle ── */
   const gp = (UI.genres = { isOpen: false });
@@ -261,7 +297,7 @@
   addEventListener('pointercancel', () => { pressing = false; }, true);
   gp.refresh = U.debounce(() => { if (!gp.isOpen) return; if (pressing) return gp.refresh(); gp.open(); }, 600);
   gp.close = () => { U.$('#genrePop').hidden = true; gp.isOpen = false; };
-  gp.toggle = () => (gp.isOpen ? gp.close() : (UI.timer.close(), UI.info.close(), gp.open()));
+  gp.toggle = () => (gp.isOpen ? gp.close() : (UI.timer.close(), UI.info.close(), UI.view.close(), gp.open()));
 
   /* ── Clock + next event + tasks ── */
   UI.toggleClock = function () {
@@ -271,10 +307,11 @@
   };
   UI.tickClock = function () {
     const c = U.$('#clock'), s = SS.settings, now = new Date();
-    document.body.classList.toggle('no-clock', !s.clock);
+    const show = s.clock || UI.isClockOnly();       // "Clock & date only" shows them even if the clock is normally hidden
+    document.body.classList.toggle('no-clock', !show);
     const cb = U.$('#hud [data-act=clock]'); if (cb) cb.classList.toggle('off', !s.clock);
-    c.hidden = !s.clock && !s.env.enabled;
-    U.$('.clk-time', c).hidden = !s.clock; U.$('#clkDate').hidden = !s.clock;
+    c.hidden = !show && !s.env.enabled;
+    U.$('.clk-time', c).hidden = !show; U.$('#clkDate').hidden = !show;
     let hh = now.getHours(); const mm = String(now.getMinutes()).padStart(2, '0');
     let ap = '';
     if (!s.clock24) { ap = hh >= 12 ? 'PM' : 'AM'; hh = hh % 12 || 12; }
@@ -299,22 +336,41 @@
 
   /* ── Gestures & keys ── */
   function initInput() {
-    let sx = 0, sy = 0, st = 0;
-    const stage = U.$('#stage');
-    let wasOpen = false;
-    stage.addEventListener('pointerdown', e => {
-      sx = e.clientX; sy = e.clientY; st = Date.now();
-      // something open (panel, a card, the timer)? then this tap just closes it
-      wasOpen = document.body.classList.contains('panel-open') || (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen || UI.genres.isOpen;
-    });
-    stage.addEventListener('pointerup', e => {
-      const dx = e.clientX - sx, dy = e.clientY - sy, dt = Date.now() - st;
-      if (dt < 600 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { dx < 0 ? SS.show.advance() : SS.show.prev(); return; }
-      if (Math.hypot(dx, dy) > 14 || dt > 700) return;           // a drag or a long press, not a tap
-      if (UI.dblAt && Date.now() - UI.dblAt < 60) return;          // second tap of a double-tap: already hidden
-      if (wasOpen) { SS.planner.close(); UI.wakeUp(); return; }
+    // Swipes work anywhere over the picture (the art, the caption, the clock), not on buttons or panels.
+    // Left = next, right = back. The picture follows your finger; let go past the line, or flick, and it goes.
+    const NO_SWIPE = 'button, a, input, select, textarea, label, .seg, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #genrePop, #viewPop, #hud, #panelTab, #stripTab, #flightStrip, #wx, .clk-next, #banner, #toasts';
+    let g = null;
+    addEventListener('pointerdown', e => {
+      if (!e.isPrimary || UI.gameOpen || SS.settingsUI.isOpen || (SS.radar && SS.radar.bigOpen) || (e.pointerType === 'mouse' && e.button !== 0)) { g = null; return; }
+      if (e.target.closest && e.target.closest(NO_SWIPE)) { g = null; return; }
+      g = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId, drag: false, stage: !!e.target.closest('#stage'),
+        // something open (panel, a card, a pop-up)? then a tap just closes it
+        wasOpen: document.body.classList.contains('panel-open') || (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen || UI.genres.isOpen || UI.view.isOpen };
+    }, true);
+    addEventListener('pointermove', e => {
+      if (!g || e.pointerId !== g.id) return;
+      const dx = e.clientX - g.x, dy = e.clientY - g.y;
+      if (!g.drag && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3 && SS.show.cur) g.drag = true;
+      if (g.drag) SS.show.drag(dx / innerWidth);
+    }, true);
+    addEventListener('pointerup', e => {
+      if (!g || e.pointerId !== g.id) return;
+      const was = g; g = null;
+      const dx = e.clientX - was.x, dy = e.clientY - was.y, dt = Math.max(1, Date.now() - was.t);
+      if (was.drag) {
+        UI.swipedAt = Date.now(); UI.resetDbl();
+        const f = dx / innerWidth, flick = Math.abs(dx) / dt > 0.45 && Math.abs(dx) > 30;
+        if (Math.abs(dx) > Math.min(90, innerWidth * 0.18) || flick) SS.show.swipe(dx < 0 ? 'next' : 'prev', f);
+        else SS.show.snapBack(f);
+        return;
+      }
+      if (!was.stage && !UI.isClockOnly()) return;                   // taps only count on the art itself
+      if (Math.hypot(dx, dy) > 14 || dt > 700) return;              // a drag or a long press, not a tap
+      if (UI.dblAt && Date.now() - UI.dblAt < 60) return;           // second tap of a double-tap: already hidden
+      if (was.wasOpen) { SS.planner.close(); UI.wakeUp(); return; }
       UI.toggleArt();
-    });
+    }, true);
+    addEventListener('pointercancel', e => { if (g && g.drag) SS.show.snapBack(0); g = null; }, true);
     const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
     let seq = [];
     addEventListener('keydown', e => {
@@ -322,7 +378,7 @@
       seq.push(e.key.length === 1 ? e.key.toLowerCase() : e.key); seq = seq.slice(-KONAMI.length);
       if (seq.join() === KONAMI.join()) { seq = []; SS.settingsUI.close(); SS.game.open(); return; }
       if (SS.game.isOpen) return;
-      if (e.key === 'Escape') { if (UI.info.isOpen) UI.info.close(); else if (UI.timer.isOpen) UI.timer.close(); else if (UI.genres.isOpen) UI.genres.close(); else if (SS.settingsUI.isOpen) SS.settingsUI.close(); else if (SS.radar.bigOpen) SS.radar.closeBig(); else if (SS.radar.cardOpen) SS.radar.closeCard(); else SS.planner.close(); return; }
+      if (e.key === 'Escape') { if (UI.info.isOpen) UI.info.close(); else if (UI.timer.isOpen) UI.timer.close(); else if (UI.genres.isOpen) UI.genres.close(); else if (UI.view.isOpen) UI.view.close(); else if (UI.isClockOnly() || UI.isArtOnly()) UI.showAll(); else if (SS.settingsUI.isOpen) SS.settingsUI.close(); else if (SS.radar.bigOpen) SS.radar.closeBig(); else if (SS.radar.cardOpen) SS.radar.closeCard(); else SS.planner.close(); return; }
       if (SS.settingsUI.isOpen) return;
       const k = e.key.toLowerCase();
       if (e.key === 'ArrowRight') SS.show.advance();
@@ -338,6 +394,7 @@
       else if (k === 'k') UI.toggleClock();
       else if (k === 'h') UI.toggleArt();
       else if (k === 'g') UI.genres.toggle();
+      else if (k === 'd') (UI.isClockOnly() ? UI.showAll() : UI.clockOnly());
       else if (k === 'x') { const g = SS.pool.shuffleNow(); if (g) U.toast(h('span', { class: 'toast-shuf' }, U.icon('shuffle'), 'Shuffle · ' + g.name), 2600); }
     });
   }

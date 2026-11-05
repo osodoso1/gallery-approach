@@ -41,7 +41,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round
 a { color: inherit; }
 
 /* ───────── Stage ───────── */
-#stage { position: fixed; inset: 0; overflow: hidden; background: #000; }
+#stage { position: fixed; inset: 0; overflow: hidden; background: #000; touch-action: none; }
+/* Sideways drags over the picture are swipes (handled by the app), so the browser mustn't take them over. */
+#caption, #clock .clk-time, #clkDate { touch-action: none; }
+#slides .slide { will-change: transform; }
 #slides, #fx { position: absolute; inset: 0; }
 #fx { z-index: 2; pointer-events: none; }
 .slide { position: absolute; inset: 0; overflow: hidden; }
@@ -498,6 +501,27 @@ body.no-strip.strip-tab #caption { bottom: calc(var(--safe-b) + 58px); }
 body.art-only #overlay { opacity: 0; visibility: hidden; transition: opacity .55s var(--ease), visibility 0s linear .55s; }
 body.art-only .scrim { opacity: 0; }
 body.art-only #panelTab { transform: translate(100%, -50%); }
+
+/* Clock & date only: the time and date stay over the art, everything else goes */
+body.clock-only #wx, body.clock-only #clkNext, body.clock-only #flightStrip, body.clock-only #stripTab, body.clock-only #caption, body.clock-only #flightCard { opacity: 0 !important; visibility: hidden; pointer-events: none !important; transition: opacity .55s var(--ease), visibility 0s linear .55s; }
+body.clock-only #overlay, body.clock-only #overlay * { pointer-events: none !important; }
+body.clock-only .scrim-bottom { opacity: 0; }
+body.clock-only #panelTab { transform: translate(100%, -50%); }
+
+/* What's on screen (the clock button) */
+#viewPop { position: fixed; z-index: 21; top: calc(var(--safe-t) + 68px); left: 50%; transform: translateX(-50%); width: min(380px, calc(100vw - 20px)); padding: 14px; border-radius: 18px; background: var(--glass-strong); border: 1px solid var(--hair-2); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); box-shadow: 0 20px 60px rgba(0,0,0,.5); animation: rise .3s var(--ease); }
+.vp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.vp-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px 10px; border: 1px solid var(--hair-2); border-radius: 12px; background: rgba(255,255,255,.05); color: var(--text); font: 600 12px var(--sans); cursor: pointer; }
+.vp-btn:hover, .vp-btn:focus-visible { background: rgba(255,255,255,.1); outline: none; }
+.vp-btn.on { background: var(--text); color: #111; border-color: var(--text); }
+.vp-ic { display: grid; place-items: center; }
+.vp-ic svg { width: 24px; height: 24px; }
+.vp-row { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hair); }
+.vp-row2 { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.vp-row2 small { font: 450 11.5px var(--sans); color: var(--muted); }
+.vp-seg { align-self: flex-start; }
+.vp-seg button { font-size: 12px; }
+#viewPop .note { margin-top: 10px; }
 
 /* ───────── Responsive ───────── */
 @media (max-width: 760px) {
