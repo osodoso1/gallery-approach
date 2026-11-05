@@ -10,7 +10,7 @@
     try {
       const r = C.render(item, loaded, st);
       if (loaded.img) item.shown = { url: loaded.url || '', w: loaded.img.naturalWidth, h: loaded.img.naturalHeight };
-      return { item, canvas: r.canvas, mode: r.mode, loaded, st };
+      return { item, canvas: r.canvas, mode: r.mode, loaded, st, live: r.live };
     } finally { if (loaded.revoke) setTimeout(loaded.revoke, 2000); }
   }
 
@@ -29,6 +29,7 @@
   function rerender(sl) {
     const st = C.stage();
     if (sl.canvas.width === st.pw && sl.canvas.height === st.ph) return;
+    if (sl.live) { sl.live.resize(st); sl.st = st; return; }
     if (!sl.loaded || (!sl.loaded.img && !sl.loaded.gen)) return;
     const r = C.render(sl.item, sl.loaded, st);
     sl.canvas = r.canvas; sl.mode = r.mode; sl.st = st;
@@ -44,6 +45,7 @@
     sl.kbDur = Math.min(SS.settings.slideSeconds, sl.item.src === 'generative' ? SS.settings.genSeconds || 120 : 1e9) * 1000 + 8000;
     sl.kbAnim = sl.canvas.animate([{ transform: C.kbCSS(sl.kb, 0) }, { transform: C.kbCSS(sl.kb, 1) }], { duration: sl.kbDur, easing: 'linear', fill: 'forwards' });
     if (!S.playing) sl.kbAnim.pause();
+    if (sl.live && S.playing) sl.live.start();   // living art keeps drawing while it's on screen
     sl.st = st;
   }
   const kbP = sl => (sl && sl.kbAnim ? U.clamp((sl.kbAnim.currentTime || 0) / sl.kbDur, 0, 1) : 0);
@@ -86,7 +88,7 @@
       const playing = SS.fx.play(fxId, A, B, st, { host: U.$('#fx'), variant: opts.variant, speed: S.cur ? null : 1.4 });
       // The transition layer now covers the stage, so the old slide can go.
       const old = S.cur;
-      if (old) { old.kbAnim && old.kbAnim.cancel(); old.el && old.el.remove(); }
+      if (old) { old.kbAnim && old.kbAnim.cancel(); old.el && old.el.remove(); old.live && old.live.stop(); }
       const res = await playing;
       mount(nx);
       res.layer.remove();
@@ -121,7 +123,9 @@
   // How long the current picture stays. Generative pieces are a treat, so they're capped (2 min by default).
   S.dwell = () => {
     const sec = SS.settings.slideSeconds;
-    return (S.cur && S.cur.item && S.cur.item.src === 'generative' ? Math.min(sec, SS.settings.genSeconds || 120) : sec) * 1000;
+    const it = S.cur && S.cur.item;
+    if (it && it.src === 'living') return (SS.settings.liveSeconds || 180) * 1000;
+    return (it && it.src === 'generative' ? Math.min(sec, SS.settings.genSeconds || 120) : sec) * 1000;
   };
   function schedule(ms) {
     clearTimeout(S.timer);
@@ -135,12 +139,14 @@
   S.pause = function () {
     S.playing = false; clearTimeout(S.timer);
     S.cur && S.cur.kbAnim && S.cur.kbAnim.pause();
+    S.cur && S.cur.live && S.cur.live.stop();
     document.body.classList.add('paused');
     SS.emit('play', false);
   };
   S.resume = function () {
     S.playing = true;
     S.cur && S.cur.kbAnim && S.cur.kbAnim.play();
+    S.cur && S.cur.live && S.cur.live.start();
     document.body.classList.remove('paused');
     schedule();
     SS.emit('play', true);

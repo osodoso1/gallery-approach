@@ -66,6 +66,8 @@
       row('New picture every', 'Also in the control bar (the ⏱ button)', seg('slideSeconds', [[30, '30s'], [60, '1m'], [120, '2m'], [300, '5m'], [600, '10m'], [900, '15m'], [1800, '30m'], [3600, '1h']], () => { SS.show.schedule(); SS.ui.timerLabel(); })),
       row('Hide everything but the art after', 'Tap the art any time to hide everything (clock too), and tap again to bring it back. On its own, the weather, chips, caption and flight tab also fade after a while; the clock stays (hide it with the clock button). Each new picture shows its caption for a few seconds.', seg('calm', [[10, '10s'], [20, '20s'], [60, '1m'], [300, '5m'], [0, 'Never']])),
       row('Generative art', 'Abstract pieces this app draws itself, in code. Off means only real art and your photos; if nothing can load, recent pieces come round again.', seg('weights.generative', [[-1, 'Off'], [0, 'Only if nothing loads'], [1, 'Now and then'], [2, 'Often']], () => { SS.pool.genChanged(); renderMain(); })),
+      row('Living art', 'Animated pieces drawn live, like Pong Wars, the Game of Life, Langton\'s ants and a murmuration of starlings. Each one is credited.', seg('weights.living', [[0, 'Off'], [1, 'Low'], [2, 'Normal'], [3, 'High']], () => SS.pool.warm())),
+      SS.settings.weights.living ? row('Each living piece stays', null, seg('liveSeconds', [[60, '1m'], [180, '3m'], [300, '5m'], [600, '10m']], () => SS.show.schedule())) : '',
       SS.pool.genAllowed() ? row('Generative art stays at most', null, seg('genSeconds', [[60, '1m'], [120, '2m'], [300, '5m']], () => SS.show.schedule())) : '',
       row('Art focus', 'Paintings & drawings, or everything museums have (sculpture, textiles, objects…)', seg('artFocus', [['paintings', 'Paintings'], ['everything', 'Everything']], () => { SS.pool.queues = {}; SS.pool.warm(); })),
       row('Framing', 'Smart: art shown whole on a blurred wall, photos fill the screen', seg('fit', [['smart', 'Smart'], ['fill', 'Fill'], ['fit', 'Whole image']])),
@@ -115,7 +117,7 @@
   function sources(m) {
     m.append(h('h2', null, 'Art & photo sources'), h('p', { class: 'lead' }, 'Every picture shows where it came from and its licence. Turn a source up, down or off. Each source keeps a few pictures lined up (just their details; images download right before they show) and tops up as it goes. Searches jump to a random page anywhere in the results, so over time the whole open collection comes round, not just the top hits.'));
     if (SS.env.cspBlocked) m.append(h('p', { class: 'note' }, 'This hosted preview blocks outside connections, so the museums can\'t load here. Run it from a Pi or computer (see About) and they all switch on.'));
-    const groups = [['art', 'Museums (open-access works of art)'], ['photo', 'Photography'], ['space', 'Space'], ['gen', 'Offline']];
+    const groups = [['art', 'Museums (open-access works of art)'], ['living', 'Living art (animated, drawn live)'], ['photo', 'Photography'], ['space', 'Space'], ['gen', 'Offline']];
     for (const [grp, label] of groups) {
       m.append(h('div', { class: 'fx-group' }, label));
       SS.providerOrder.filter(id => SS.providers[id].group === grp).forEach(id => {

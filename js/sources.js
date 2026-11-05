@@ -280,6 +280,11 @@
     async fetchBatch() { return Array.from({ length: 6 }, () => SS.gen.make()); },
   });
 
+  def({
+    id: 'living', name: 'Living art', sub: 'Animated pieces drawn live: Pong Wars, Life, Langton\'s ants, a murmuration', color: '#e4b95c', group: 'living', home: 'https://github.com/vnglst/pong-wars',
+    async fetchBatch() { return Array.from({ length: 4 }, () => SS.live.make()); },
+  });
+
   P.personal = {
     id: 'personal', name: 'Your photos', sub: 'This device + Pi folder', color: '#ffb547', group: 'personal',
     async fetchBatch() { return SS.photos.nextBatch(10).map(SS.photos.toItem); },
@@ -321,7 +326,7 @@
     pool.fetching[id] = true;
     try {
       let items = await prov.fetchBatch();
-      items = (items || []).filter(it => it && (it.load || it.gen || (it.urls && it.urls.some(Boolean))) && (id === 'personal' || (!pool.history.has(it.key) && !pool.queuedKeys.has(it.key))));
+      items = (items || []).filter(it => it && (it.load || it.gen || it.live || (it.urls && it.urls.some(Boolean))) && (id === 'personal' || (!pool.history.has(it.key) && !pool.queuedKeys.has(it.key))));
       if (id !== 'personal') items.forEach(it => pool.queuedKeys.add(it.key));
       (pool.queues[id] = pool.queues[id] || []).push(...(id === 'personal' ? items : U.shuffle(items)));
       pool.fails[id] = 0;
@@ -376,7 +381,7 @@
     return null;
   };
   pool.markShown = item => {
-    if (!item || !item.key || item.src === 'personal' || item.src === 'generative') return;
+    if (!item || !item.key || item.src === 'personal' || item.src === 'generative' || item.src === 'living') return;
     pool.history.add(item.key);
     if (!item.rerun && item.urls) {
       const { key, src, kind, urls, title, creator, date, detail, credit, license, link } = item;

@@ -74,6 +74,8 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 - **Big radar** (tap the little radar on the strip, or **R**): tap any plane to see it. On a phone, tap **Compass**: the radar turns to match the way you're facing, the cone shows where you're pointing, and it tells you which plane is in front of you, how far away it is and how high to look ("look up 9°"). Hold the phone flat like a map, or up like a camera. If it's a few degrees off, the ‹ › buttons line it up.
 - **Easter egg:** long-press the flight strip, triple-tap the flight number, or type ↑↑↓↓←→←→BA. Your first plane is the one landing right now (or the last one the radar saw). Drag it to its runway, then keep the rest of the traffic apart. **2×** in the corner doubles the speed. Every so often the tower tells a plane to make a 360 for spacing, and it spins round once or twice before carrying on.
 
+**Living art** is a source of animated pieces the app draws live, in the flat, calm style of [Pong Wars](https://github.com/vnglst/pong-wars): Pong Wars itself (after Koen van Gilst's original, MIT licence) in six two-colour palettes (Latte vs Roast, Day vs Night, Matcha vs Charcoal, Sakura vs Ink, Sand vs Sea, Clementine vs Plum), a tag-team twist where the balls trade sides when they meet, and Four Seasons with four teams; Conway's Game of Life with fading trails; Langton's ants; and a murmuration of starlings at dusk (Reynolds' boids). Each piece is credited in its caption and About card. ⚙ → Slideshow → *Living art* turns it up, down or off, and sets how long each piece stays (3 min by default).
+
 **Generative art** is drawn by the app itself, in code, right on your screen (nebulas, auroras, dusk scenes, geometric compositions). It isn't a photo and it isn't AI. It mixes in now and then, and fills in when real art can't load. **Don't want it?** ⚙ → Slideshow → *Generative art* → **Off** (or tap *Don't show generative art* in a generative piece's About card). With it off, if nothing new can load, recent pieces of real art come round again.
 
 ## Sources & licences
@@ -92,6 +94,7 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 | Windows Spotlight | Lock-screen photography | © credited photographer | Pi/computer server |
 | Bing daily image | Daily photography | © credited photographer | Pi/computer server |
 | Your photos | This device and/or `photos/` | yours | — |
+| Living art | Animated pieces drawn live (Pong Wars, Life, Langton's ants, starlings) | MIT (Pong Wars) / classic algorithms | — |
 | Generative studies | Made on the device | yours | can be turned off |
 
 Each source keeps a few pictures lined up (just their details; the image downloads right before it shows) and tops up as it goes. Searches ask how many results there are, then jump to a random page anywhere in them (within the roughly 10,000-result limit these APIs allow), so over time the whole open collection comes round, not just the top hits. The Rijksmuseum is searched by famous names half the time and by random year (1500–1920) the other half. The app remembers the last 900 pictures so it doesn't repeat itself.

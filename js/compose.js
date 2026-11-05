@@ -34,6 +34,7 @@
 
   C.load = async function (item) {
     if (item.gen) return { gen: true };
+    if (item.live) return { live: true };
     if (item.load) {
       const { url, revoke } = await item.load();
       try { const img = await loadImg(url); return { img, revoke, url: /^blob:/.test(url) ? '' : url }; }
@@ -90,6 +91,7 @@
     const g = c.getContext('2d', { alpha: false });
     g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
     if (loaded.gen) { SS.gen.draw(g, st.pw, st.ph, item.gen); return { canvas: c, mode: 'cover' }; }
+    if (loaded.live) { const live = SS.live.create(item, st); return { canvas: live.canvas, mode: 'live', live }; }
     const img = loaded.img, iw = img.naturalWidth, ih = img.naturalHeight;
     const { src, w: sw, h: sh } = downscale(img, iw, ih, st.pw, st.ph);
     const ir = iw / ih, sr = st.pw / st.ph, mismatch = Math.max(ir / sr, sr / ir);
@@ -126,7 +128,7 @@
 
   /* Ken Burns: slow drift that never exposes an edge. */
   C.kbParams = function (mode, st) {
-    if (!SS.settings.kenBurns) return { s0: 1, s1: 1, x0: 0, y0: 0, x1: 0, y1: 0 };
+    if (!SS.settings.kenBurns || mode === 'live') return { s0: 1, s1: 1, x0: 0, y0: 0, x1: 0, y1: 0 };
     const amp = mode === 'gallery' ? U.rand(0.02, 0.035) : U.rand(0.05, 0.085);
     const zoomIn = Math.random() < 0.6;
     const a = Math.random() * Math.PI * 2;

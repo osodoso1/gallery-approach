@@ -128,7 +128,7 @@
     const thumb = h('div', { class: 'ic-thumb' });
     const cur = SS.show.cur;
     if (cur && cur.item === item && cur.canvas) { const c = U.mk(320, Math.round(320 * cur.canvas.height / cur.canvas.width)); c.getContext('2d').drawImage(cur.canvas, 0, 0, c.width, c.height); thumb.append(c); }
-    const gen = item.src === 'generative', mine = item.src === 'personal';
+    const gen = item.src === 'generative', mine = item.src === 'personal', living = item.src === 'living';
     const shown = item.shown && item.shown.url && /^https?:|^\//.test(item.shown.url) ? item.shown : null;
     card.append(
       h('button', { class: 'fc-x', 'aria-label': 'Close', onclick: e => { e.stopPropagation(); info.close(); } }, U.icon('x')), thumb,
@@ -137,6 +137,7 @@
         h('div', { class: 'ic-title' }, U.text(item.title) || 'Untitled'),
         gen ? h('p', { class: 'ic-note' }, `Generative art: this app drew it itself, with code, right on this screen. It isn't a photo of anything and it isn't AI-made. It stays at most ${Math.round((SS.settings.genSeconds || 120) / 60)} min.`) : '',
         gen ? h('div', { style: { margin: '0 0 10px' } }, h('button', { class: 'btn small', onclick: e => { e.stopPropagation(); SS.setSetting('weights.generative', -1); info.close(); SS.pool.genChanged(); U.toast('Generative art is off. Turn it back on in Settings → Slideshow.'); } }, 'Don\'t show generative art')) : '',
+        living ? h('p', { class: 'ic-note' }, 'Living art: an animation this app draws live, right now, so every run plays out differently. The idea and its creator are credited below.') : '',
         row('Source', p.name || item.src),
         !mine && !gen ? row('By', U.text(item.creator)) : '',
         row(mine ? 'Taken' : 'Date', mine ? (item.taken ? U.fmt.date(item.taken) : '') : U.text(item.date)),
@@ -147,7 +148,7 @@
         gen ? row('Style', item.gen && item.gen.style) : '', gen ? row('Seed', item.gen && String(item.gen.seed)) : '',
         shown ? row('Image file', `${hostName(shown.url) || 'this server'} · ${shown.w}×${shown.h}`) : '',
         h('div', { class: 'ic-links' },
-          item.link ? link(item.link, `Open the original at ${p.name || 'the source'} ↗`) : '',
+          item.link ? link(item.link, living ? 'About the original idea ↗' : `Open the original at ${p.name || 'the source'} ↗`) : '',
           p.home ? link(p.home, `About ${p.name}'s open collection ↗`) : '')));
     card.hidden = false; info.isOpen = true;
   };
