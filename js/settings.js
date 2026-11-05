@@ -38,7 +38,7 @@
     render();
   };
   ST.close = function () { ST.isOpen = false; U.$('#sheet').hidden = true; U.$('#sheet').innerHTML = ''; revokeThumbs(); };
-  SS.on('pool', () => { if (ST.isOpen && ST.section === 'sources') renderMain(); if (SS.ui.genres && SS.ui.genres.isOpen) SS.ui.genres.open(); });
+  SS.on('pool', () => { if (ST.isOpen && ST.section === 'sources') renderMain(); if (SS.ui.genres && SS.ui.genres.isOpen) SS.ui.genres.refresh(); });
   SS.on('photos', () => { if (ST.isOpen && ST.section === 'photos') renderMain(); });
   SS.on('cloud', () => { if (ST.isOpen && (ST.section === 'sync' || ST.section === 'photos')) renderMain(); });
 

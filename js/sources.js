@@ -567,6 +567,11 @@
     { id: 'mine', name: 'My photos', sub: 'From this device or the Pi folder', color: '#ffb547', srcs: ['personal'],
       get: () => !!SS.settings.personalOn, set: v => SS.setSetting('personalOn', v) },
   ]);
+  // Where each source's pictures come from (shown under the genre in the drop-down).
+  const API = { met: 'collectionapi.metmuseum.org', aic: 'api.artic.edu', cleveland: 'openaccess-api.clevelandart.org', smk: 'api.smk.dk', rijks: 'data.rijksmuseum.nl', vam: 'api.vam.ac.uk', harvard: 'api.harvardartmuseums.org',
+    wikimedia: 'commons.wikimedia.org', spotlight: 'Windows Spotlight, via your Pi', bing: 'Bing, via your Pi', posters: 'commons.wikimedia.org', sciart: 'commons.wikimedia.org', wellcome: 'api.wellcomecollection.org',
+    nasa: 'images-api.nasa.gov', nasavideo: 'images-api.nasa.gov', classics: 'archive.org · commons.wikimedia.org', archivefilm: 'archive.org', commonsvideo: 'commons.wikimedia.org', europeana: 'api.europeana.eu' };
+  for (const id in API) if (P[id]) P[id].api = API[id];
   const GBY = {}; GENRES.forEach(g => { GBY[g.id] = g; g.srcs.forEach(id => { if (P[id]) P[id].genre = g.id; }); });
   SS.genreById = GBY;
 
@@ -595,7 +600,11 @@
     if (SS.show.cur && SS.show.cur.item.src === 'generative') SS.show.advance();
   };
   pool.genreOfItem = it => (it.src === 'personal' ? 'mine' : P[it.src] && P[it.src].genre);
-  pool.allowed = it => { const g = pool.genreOfItem(it); return !g || pool.genreOn(g); };
+  pool.allowed = it => {
+    const g = pool.genreOfItem(it);
+    if (g && !pool.genreOn(g)) return false;
+    return it.src === 'personal' || it.src === 'generative' || it.src === 'living' || !P[it.src] || pool.sourceOn(it.src);
+  };
   pool.fallback = () => (pool.genAllowed() ? SS.gen.make() : pool.rerun());
 
   pool.genreOn = g => { g = typeof g === 'string' ? GBY[g] : g; return !!g && (g.get ? g.get() : (SS.settings.genres || {})[g.id] !== false); };
@@ -604,6 +613,21 @@
     if (g.set) g.set(on); else SS.setSetting('genres.' + id, on);
     if (id === 'mine') pool.resetPersonal();
     if (pool.run && pool.run.genre === id && !on) pool.run = null;
+    pool.genChanged(true);
+  };
+  // Tick a single source on or off (it remembers the level it was on). Ticking one also ticks its genre.
+  pool.sourceOn = id => (SS.settings.weights[id] || 0) > 0;
+  pool.setSource = (id, on) => {
+    const p = P[id]; if (!p) return;
+    const was = SS.settings.weightsWas || (SS.settings.weightsWas = {});
+    if (on) {
+      SS.setSetting('weights.' + id, was[id] || SS.DEFAULTS.weights[id] || 2);
+      pool.cooldown[id] = 0; pool.fails[id] = 0;
+      if (p.genre && !pool.genreOn(p.genre)) { const g = GBY[p.genre]; if (g.set) g.set(true); else SS.setSetting('genres.' + g.id, true); }
+    } else {
+      if (SS.settings.weights[id] > 0) was[id] = SS.settings.weights[id];
+      SS.setSetting('weights.' + id, 0);
+    }
     pool.genChanged(true);
   };
   pool.weightOf = id => {

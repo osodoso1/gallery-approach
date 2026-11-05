@@ -159,6 +159,29 @@ a { color: inherit; }
 .gp-foot { display: flex; justify-content: space-between; margin-top: 6px; }
 .linkish { background: none; border: 0; color: var(--muted); font: 500 12px var(--sans); cursor: pointer; padding: 6px 0; }
 .linkish:hover, .linkish:focus-visible { color: var(--text); outline: none; }
+.gp-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px; }
+.gp-exp { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 8px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }
+.gp-exp:hover, .gp-exp:focus-visible { background: rgba(255,255,255,.07); color: var(--text); outline: none; }
+.gp-exp[aria-expanded="true"] { border-color: var(--hair); color: var(--text); }
+.gp-exp svg { width: 15px; height: 15px; transition: transform .2s var(--ease); }
+.gp-exp[aria-expanded="true"] svg { transform: rotate(180deg); }
+.gp-k { font: 600 10.5px var(--mono); letter-spacing: .02em; }
+.gp-subs { margin: -2px 0 8px 16px; padding: 2px 0 2px 12px; border-left: 1px solid var(--hair-2); }
+.gp-subs.dim { opacity: .5; }
+.gp-src { position: relative; display: grid; grid-template-columns: 18px 7px minmax(0, 1fr); align-items: center; gap: 9px; padding: 5px 6px; border-radius: 8px; cursor: pointer; }
+.gp-src:hover { background: rgba(255,255,255,.05); }
+.gp-src input { position: absolute; opacity: 0; width: 0; height: 0; }
+.gp-src .gp-box { width: 18px; height: 18px; border-radius: 5px; }
+.gp-src .gp-box svg { width: 12px; height: 12px; }
+.gp-src.on .gp-box { background: var(--text); border-color: var(--text); }
+.gp-src.on .gp-box svg { opacity: 1; }
+.gp-src input:focus-visible + .gp-box { outline: 2px solid var(--amber); outline-offset: 2px; }
+.gp-src .cap-dot { width: 7px; height: 7px; }
+.gp-src:not(.on) .cap-dot { opacity: .35; }
+.gp-src .gp-txt b { font: 550 12.5px/1.25 var(--sans); }
+.gp-src:not(.on) .gp-txt b { color: var(--muted); font-weight: 500; }
+.gp-src .gp-txt small { font-size: 11px; font-family: var(--sans); }
+.gp-src.bad .gp-txt small { color: var(--red); opacity: .85; }
 .toast-shuf { display: inline-flex; align-items: center; gap: 8px; }
 .toast-shuf svg { width: 16px; height: 16px; color: var(--amber); }
 

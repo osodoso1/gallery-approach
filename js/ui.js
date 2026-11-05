@@ -85,7 +85,7 @@
       lab.textContent = SS.settings.fxLabel && fx ? '↻ ' + SS.fx.label(fx.id, fx.variant) : '';
     });
     // Shuffle moved on to a new genre: say which, briefly.
-    SS.on('slide', ({ item }) => { if (item && item.runStart && SS.genreById[item.runStart]) U.toast(h('span', { class: 'toast-shuf' }, U.icon('shuffle'), 'Shuffle · ' + SS.genreById[item.runStart].name), 2600); if (UI.genres.isOpen) UI.genres.open(); });
+    SS.on('slide', ({ item }) => { if (item && item.runStart && SS.genreById[item.runStart]) U.toast(h('span', { class: 'toast-shuf' }, U.icon('shuffle'), 'Shuffle · ' + SS.genreById[item.runStart].name), 2600); if (UI.genres.isOpen) UI.genres.refresh(); });
   }
 
   /* ── Caption ── */
@@ -189,6 +189,18 @@
     b.classList.toggle('shuf', shuf);
     b.append(U.icon(shuf ? 'shuffle' : 'genres'), h('span', { class: 'gl-n' }, on === G.length ? 'All' : String(on)), h('span', { class: 'gl-long' }, (on === 1 ? ' genre' : ' genres') + (shuf ? ' · shuffle' : '')), U.icon('down'));
   };
+  const OPEN = new Set(U.store.get('gpOpen', []));            // which genres are expanded to show their sources
+  const srcLine = id => {
+    const p = SS.providers[id], P = SS.pool, st = P.status[id] || {}, api = p.api || '';
+    const q = (P.queues[id] || []).length;
+    const state = !P.sourceOn(id) ? 'off'
+      : p.needsServer && !SS.server.available ? 'needs the Pi or computer server'
+      : p.needsKey && !SS.settings[p.needsKey] ? 'needs a free API key (Fine-tune sources)'
+      : st.state === 'error' ? 'couldn\'t reach it right now'
+      : q ? `${q} lined up` + (P.reach[id] && P.reach[id].n ? ` · from ${U.fmt.int(P.reach[id].n)} works` : '')
+      : P.fetching[id] ? 'loading…' : 'waiting';
+    return { text: [api, state].filter(Boolean).join(' · '), bad: /needs|couldn/.test(state) && P.sourceOn(id) };
+  };
   gp.open = function () {
     const pop = U.$('#genrePop'), P = SS.pool, G = SS.genres;
     const keep = pop.querySelector('.gp-list'), top = keep ? keep.scrollTop : 0;
@@ -203,19 +215,38 @@
         P.setGenre(g.id, cb.checked); UI.genreLabel(); gp.open();
       });
       const why = (isOn && P.genreWhy(g.id)) || g.sub;
-      list.append(h('label', { class: 'gp-row' + (isOn ? ' on' : '') + (isOn && !ready ? ' idle' : '') },
-        cb, h('span', { class: 'gp-box' }, U.icon('check')), h('span', { class: 'cap-dot', style: { '--c': g.color } }),
-        h('span', { class: 'gp-txt' }, h('b', null, g.name, run && run.genre === g.id && SS.show.cur && P.genreOfItem(SS.show.cur.item) === g.id ? h('span', { class: 'gp-now' }, 'now') : ''), h('small', null, why))));
+      const srcs = g.srcs.filter(id => SS.providers[id] && SS.providers[id].api);   // living, generative and my photos have no outside source
+      const open = srcs.length && OPEN.has(g.id);
+      const item = h('div', { class: 'gp-item' + (open ? ' open' : '') },
+        h('label', { class: 'gp-row' + (isOn ? ' on' : '') + (isOn && !ready ? ' idle' : '') },
+          cb, h('span', { class: 'gp-box' }, U.icon('check')), h('span', { class: 'cap-dot', style: { '--c': g.color } }),
+          h('span', { class: 'gp-txt' }, h('b', null, g.name, run && run.genre === g.id && SS.show.cur && P.genreOfItem(SS.show.cur.item) === g.id ? h('span', { class: 'gp-now' }, 'now') : ''), h('small', null, why))),
+        srcs.length ? h('button', { class: 'gp-exp', 'aria-expanded': open ? 'true' : 'false', 'aria-label': `${open ? 'Hide' : 'Show'} the sources for ${g.name}`, title: open ? 'Hide sources' : 'Show sources',
+          onclick: e => { e.stopPropagation(); OPEN.has(g.id) ? OPEN.delete(g.id) : OPEN.add(g.id); U.store.set('gpOpen', Array.from(OPEN)); gp.open(); } },
+          h('span', { class: 'gp-k' }, `${srcs.filter(id => P.sourceOn(id)).length}/${srcs.length}`), U.icon('down')) : '');
+      list.append(item);
+      if (open) {
+        const sub = h('div', { class: 'gp-subs' + (isOn ? '' : ' dim') });
+        srcs.forEach(id => {
+          const p = SS.providers[id], sOn = P.sourceOn(id), line = srcLine(id);
+          const scb = h('input', { type: 'checkbox', 'aria-label': p.name }); scb.checked = sOn;
+          scb.addEventListener('change', () => { P.setSource(id, scb.checked); UI.genreLabel(); gp.open(); });
+          sub.append(h('label', { class: 'gp-src' + (sOn ? ' on' : '') + (line.bad ? ' bad' : ''), title: p.sub },
+            scb, h('span', { class: 'gp-box' }, U.icon('check')), h('span', { class: 'cap-dot', style: { '--c': p.color } }),
+            h('span', { class: 'gp-txt' }, h('b', null, p.name), h('small', null, line.text))));
+        });
+        list.append(sub);
+      }
     });
     const shuf = !!SS.settings.shuffle;
     const sw = h('input', { type: 'checkbox', 'aria-label': 'Shuffle' }); sw.checked = shuf;
     sw.addEventListener('change', () => { SS.setSetting('shuffle', sw.checked); if (!sw.checked) P.run = null; UI.genreLabel(); gp.open(); });
     const cur = run && SS.genreById[run.genre];
     pop.append(
-      h('div', { class: 'tp-h gp-h' }, h('span', null, 'Genres'), h('span', { class: 'gp-count' }, `${on} of ${G.length} in the mix`)),
+      h('div', { class: 'tp-h gp-h' }, h('span', null, 'Genres'), h('span', { class: 'gp-count' }, `${on} of ${G.length} in the mix · ▾ for sources`)),
       list,
       h('div', { class: 'gp-shuffle' },
-        h('label', { class: 'gp-sw' }, h('span', { class: 'switch' }, sw, h('span')), h('span', null, h('b', null, 'Shuffle'), h('small', null, shuf ? (cur ? `Now: ${cur.name} · ${Math.max(0, run.left)} more, then a new genre` : 'One genre at a time, picked at random') : 'One genre at a time, picked at random'))),
+        h('label', { class: 'gp-sw' }, h('span', { class: 'switch' }, sw, h('span')), h('span', null, h('b', null, 'Shuffle'), h('small', null, shuf && cur ? `Now: ${cur.name} · ${Math.max(0, run.left)} more, then a new genre` : 'One genre at a time, picked at random'))),
         h('button', { class: 'btn small gp-go', onclick: e => { e.stopPropagation(); const g = P.shuffleNow(); if (!g) return U.toast('Tick a genre that can load first'); U.toast(h('span', { class: 'toast-shuf' }, U.icon('shuffle'), 'Shuffle · ' + g.name), 2600); UI.genreLabel(); gp.open(); } }, U.icon('shuffle'), 'Shuffle now')),
       h('div', { class: 'gp-foot' },
         h('button', { class: 'linkish', onclick: () => { G.forEach(g => { if (!P.genreOn(g) && (g.id !== 'mine' || SS.photos.count)) (g.set ? g.set(true) : SS.setSetting('genres.' + g.id, true)); }); P.genChanged(true); UI.genreLabel(); gp.open(); } }, 'Tick all'),
@@ -223,6 +254,12 @@
     pop.hidden = false; gp.isOpen = true;
     const nl = pop.querySelector('.gp-list'); if (nl) nl.scrollTop = top;
   };
+  // Sources report in often; redraw the open drop-down calmly, and never in the middle of a tap.
+  let pressing = false;
+  U.$('#genrePop').addEventListener('pointerdown', () => { pressing = true; });
+  addEventListener('pointerup', () => setTimeout(() => { pressing = false; }, 250), true);
+  addEventListener('pointercancel', () => { pressing = false; }, true);
+  gp.refresh = U.debounce(() => { if (!gp.isOpen) return; if (pressing) return gp.refresh(); gp.open(); }, 600);
   gp.close = () => { U.$('#genrePop').hidden = true; gp.isOpen = false; };
   gp.toggle = () => (gp.isOpen ? gp.close() : (UI.timer.close(), UI.info.close(), gp.open()));
 
