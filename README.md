@@ -78,6 +78,8 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 
 **Motion** sources add real video, played muted on a loop for up to 2 minutes: NASA time-lapses and visualizations, open-licence clips from Wikimedia Commons (including museum uploads and early films like *Gertie the Dinosaur*), early animation from the Internet Archive (1900–1930, public domain in the US), and Europeana's open video from European museums (add a free key in ⚙ → Art & photo sources). They start on *Low*; turn them up in the same place.
 
+**Classic cartoons** (on *Normal*) plays a hand-checked list of cartoons released in 1930 or earlier, which are public domain in the US: early Mickey and Minnie (*Plane Crazy*, *Steamboat Willie*, *The Karnival Kid*, *The Chain Gang* and *The Picnic* with the dog who became Pluto), the Silly Symphonies (*The Skeleton Dance* …), Oswald the Lucky Rabbit, the Alice Comedies, 1930 Betty Boop, Flip the Frog and silent Felix. Anything dated after 1930, plus remakes, colorized versions and re-releases, is skipped. Only these original films are free to use. The characters themselves are still trademarks.
+
 **Generative art** is drawn by the app itself, in code, right on your screen (nebulas, auroras, dusk scenes, geometric compositions). It isn't a photo and it isn't AI. It mixes in now and then, and fills in when real art can't load. **Don't want it?** ⚙ → Slideshow → *Generative art* → **Off** (or tap *Don't show generative art* in a generative piece's About card). With it off, if nothing new can load, recent pieces of real art come round again.
 
 ## Sources & licences
@@ -100,6 +102,7 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 | NASA video | Time-lapses and visualizations (played muted) | NASA media guidelines | — |
 | Wikimedia Commons video | Open-licence clips, incl. from museums and archives | per file (CC / public domain) | iOS 18+ for WebM |
 | Early animation (Internet Archive) | Cartoons and animated films 1900–1930 | Public domain in the US | — |
+| Classic cartoons (Internet Archive, Commons) | Early Disney, Betty Boop, Flip the Frog, Felix · 1930 or earlier | Public domain in the US | — |
 | Europeana video | Open video from Europe's museums and archives | CC0 / PD / CC BY / CC BY-SA | free API key |
 | Generative studies | Made on the device | yours | can be turned off |
 

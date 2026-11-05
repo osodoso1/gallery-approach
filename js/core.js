@@ -257,7 +257,7 @@
     personalShare: 30,          // % of slides from your photos (when you have some)
     weights: {                  // 0 off · 1 low · 2 normal · 3 high  (generative: -1 never · 0 only if nothing else loads)
       met: 2, aic: 2, cleveland: 2, smk: 2, rijks: 1, vam: 1, harvard: 2,
-      wikimedia: 2, nasa: 1, spotlight: 2, bing: 2, generative: 1, living: 2, nasavideo: 1, commonsvideo: 1, archivefilm: 1, europeana: 1,
+      wikimedia: 2, nasa: 1, spotlight: 2, bing: 2, generative: 1, living: 2, nasavideo: 1, commonsvideo: 1, archivefilm: 1, europeana: 1, classics: 2,
     },
     personalOn: true,
     harvardKey: '',

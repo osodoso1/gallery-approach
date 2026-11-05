@@ -332,6 +332,76 @@
     },
   });
 
+  // Classic cartoons: only titles released in 1930 or earlier, which are public domain in the US.
+  // A hand-checked list (title, year, studio, series) so nothing later sneaks in.
+  const C_DISNEY = 'Walt Disney Studio';
+  const CLASSICS = [
+    ...[['Plane Crazy', 1928], ['The Gallopin\' Gaucho', 1928], ['Steamboat Willie', 1928], ['The Barn Dance', 1929], ['The Opry House', 1929], ['When the Cat\'s Away', 1929], ['The Barnyard Battle', 1929], ['The Plow Boy', 1929],
+      ['The Karnival Kid', 1929], ['Mickey\'s Follies', 1929], ['Mickey\'s Choo-Choo', 1929], ['The Jazz Fool', 1929], ['Jungle Rhythm', 1929], ['The Haunted House', 1929], ['Wild Waves', 1929],
+      ['Just Mickey', 1930], ['The Barnyard Concert', 1930], ['The Cactus Kid', 1930], ['The Fire Fighters', 1930], ['The Shindig', 1930], ['The Chain Gang', 1930], ['The Gorilla Mystery', 1930], ['The Picnic', 1930], ['Pioneer Days', 1930]]
+      .map(([t, y]) => ({ t, y, by: C_DISNEY, series: 'Mickey Mouse', tags: ['mickey', 'disney'] })),
+    ...[['The Skeleton Dance', 1929], ['El Terrible Toreador', 1929], ['Springtime', 1929], ['Hell\'s Bells', 1929], ['The Merry Dwarfs', 1929],
+      ['Summer', 1930], ['Autumn', 1930], ['Cannibal Capers', 1930], ['Night', 1930], ['Frolicking Fish', 1930], ['Arctic Antics', 1930], ['Midnight in a Toy Shop', 1930], ['Monkey Melodies', 1930], ['Winter', 1930], ['Playful Pan', 1930]]
+      .map(([t, y]) => ({ t, y, by: C_DISNEY, series: 'Silly Symphony', tags: ['silly symphon', 'disney'] })),
+    ...[['Trolley Troubles', 1927], ['Oh Teacher', 1927], ['The Mechanical Cow', 1927], ['Great Guns', 1927], ['All Wet', 1927], ['The Ocean Hop', 1927], ['Bright Lights', 1928], ['Oh What a Knight', 1928],
+      ['Sky Scrappers', 1928], ['Hungry Hoboes', 1928], ['Rival Romeos', 1928], ['Sleigh Bells', 1928], ['Tall Timber', 1928], ['Poor Papa', 1928]]
+      .map(([t, y]) => ({ t, y, by: C_DISNEY, series: 'Oswald the Lucky Rabbit', tags: ['oswald'] })),
+    ...[['Alice\'s Day at Sea', 1924], ['Alice\'s Spooky Adventure', 1924], ['Alice\'s Wild West Show', 1924], ['Alice Gets in Dutch', 1924], ['Alice and the Dog Catcher', 1924], ['Alice the Peacemaker', 1924], ['Alice Hunting in Africa', 1924], ['Alice\'s Egg Plant', 1925], ['Alice Solves the Puzzle', 1925]]
+      .map(([t, y]) => ({ t, y, by: C_DISNEY, series: 'Alice Comedy', tags: ['alice', 'disney'] })),
+    ...[['Dizzy Dishes', 1930], ['Barnacle Bill', 1930], ['Accordion Joe', 1930], ['Mysterious Mose', 1930]]
+      .map(([t, y]) => ({ t, y, by: 'Fleischer Studios', series: 'Betty Boop (Talkartoon)', tags: ['fleischer', 'talkartoon', 'betty boop'] })),
+    ...[['Fiddlesticks', 1930], ['Flying Fists', 1930], ['The Village Barber', 1930], ['Little Orphan Willie', 1930], ['The Cuckoo Murder Case', 1930], ['Puddle Pranks', 1930]]
+      .map(([t, y]) => ({ t, y, by: 'Ub Iwerks', series: 'Flip the Frog', tags: ['flip', 'iwerks', 'frog'] })),
+    { t: 'Felix the Cat', y: 1930, by: 'Pat Sullivan Studio (Otto Messmer)', series: 'Felix the Cat', tags: ['felix'], whole: true },
+  ];
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const yearOf = v => { const m = /(18|19|20)\d\d/.exec(String(Array.isArray(v) ? v[0] : v || '')); return m ? +m[0] : 0; };
+  // Is this the cartoon on our list (and not a later remake or a different film with the same name)?
+  const isClassic = (c, title, extra, year) => {
+    const T = norm(title), hay = norm(title + ' ' + extra);
+    if (!T.includes(norm(c.t))) return false;
+    if (/coloriz|colouriz|remake|remaster|redub|re ?release|reissue|redrawn|reanimat|parody|tribute|upscal|ai generat/.test(hay)) return false;
+    if (year && year > 1930) return false;                       // nothing after 1930
+    const rest = hay.split(norm(c.t)).join(' ');                 // evidence beyond the cartoon's own name (the item id often repeats it)
+    const tagged = c.tags.some(tg => rest.includes(tg));
+    if (!year) return tagged && !c.whole;                        // undated: only when the studio or series says it's the original
+    if (c.whole && year > c.y) return false;
+    return tagged || norm(c.t).split(' ').length >= 2 && !/^(the )?(night|summer|winter|autumn|springtime|picnic)$/.test(norm(c.t));
+  };
+  def({
+    id: 'classics', list: CLASSICS, matches: isClassic, name: 'Classic cartoons', sub: 'Early Disney (Steamboat Willie, Silly Symphonies, Oswald, Alice), Betty Boop, Flip the Frog and Felix · 1930 or earlier, public domain in the US', color: '#e8574a', group: 'motion', home: 'https://web.law.duke.edu/cspd/publicdomainday/2026/',
+    async fetchBatch() {
+      const picks = U.shuffle(CLASSICS.slice()).slice(0, 3);
+      const out = await Promise.allSettled(picks.map(async c => {
+        const q = `title:("${c.t.replace(/["!]/g, '')}") AND mediatype:(movies)`;
+        const s = await U.fetchJSON(`https://archive.org/advancedsearch.php?q=${encodeURIComponent(q)}&fl[]=identifier&fl[]=title&fl[]=year&fl[]=date&fl[]=creator&fl[]=subject&rows=12&output=json`);
+        const docs = ((s.response && s.response.docs) || []).filter(d => isClassic(c, d.title, [d.creator, d.subject, d.identifier].flat().join(' '), yearOf(d.year) || yearOf(d.date)));
+        for (const doc of U.shuffle(docs).slice(0, 3)) {
+          const m = await U.fetchJSON(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`).catch(() => null);
+          const files = ((m && m.files) || []).filter(f => /\.mp4$/i.test(f.name || '') && /h\.264|mpeg4/i.test(f.format || ''));
+          files.sort((a, b) => (/512kb/i.test(a.format) ? 1 : 0) - (/512kb/i.test(b.format) ? 1 : 0));
+          if (!files.length) continue;
+          const year = c.whole ? (yearOf(doc.year) || yearOf(doc.date)) : c.y;   // our checked release year, not the upload date
+          return { key: 'ia:' + doc.identifier, src: 'classics', kind: 'motion', video: { urls: files.slice(0, 2).map(f => `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${f.name.split('/').map(encodeURIComponent).join('/')}`) },
+            title: c.whole ? U.text(doc.title) : c.t, creator: c.by, detail: c.series, date: String(year), license: 'Public domain (US · 1930 or earlier)', link: `https://archive.org/details/${encodeURIComponent(doc.identifier)}` };
+        }
+        // not on the Internet Archive? try Wikimedia Commons
+        if (c.whole) return null;
+        const d = await U.fetchJSON('https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=6&gsrlimit=10'
+          + `&gsrsearch=${encodeURIComponent(`"${c.t}" filetype:video`)}&prop=videoinfo&viprop=url|size|mime|derivatives`);
+        const target = phone() ? 480 : 720;
+        for (const p of Object.values((d.query && d.query.pages) || {})) {
+          const vi = p.videoinfo && p.videoinfo[0]; if (!vi || !isClassic(c, p.title, '', yearOf(p.title))) continue;
+          const ders = (vi.derivatives || []).filter(x => x.src && /video/.test(x.type || '') && canPlay(x.type)).sort((a, b) => Math.abs((a.height || 0) - target) - Math.abs((b.height || 0) - target));
+          const urls = ders.map(x => x.src).slice(0, 3); if (canPlay(vi.mime) && vi.size < 80e6) urls.push(vi.url);
+          if (urls.length) return { key: 'wmv:' + p.pageid, src: 'classics', kind: 'motion', video: { urls }, title: c.t, creator: c.by, detail: c.series, date: String(c.y), license: 'Public domain (US · 1930 or earlier)', link: vi.descriptionurl };
+        }
+        return null;
+      }));
+      return out.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
+    },
+  });
+
   // Europeana: video from Europe's museums and archives with open licences (needs a free key).
   const EUROPEANA_TERMS = ['animation', 'dance', 'art', 'painting', 'sculpture', 'museum', 'nature', 'sea', 'city', 'puppet', 'ballet', 'flowers', 'birds', 'film 1920', 'abstract', 'light'];
   const rightsLabel = r => (/publicdomain\/zero/.test(r) ? 'CC0' : /publicdomain\/mark/.test(r) ? 'Public domain' : /by-sa/.test(r) ? 'CC BY-SA' : /\/by\//.test(r) ? 'CC BY' : 'Open licence');

@@ -107,7 +107,7 @@
     el.innerHTML = '';
     const meta = [item.creator, item.date].filter(Boolean).map(String).filter((v, i, a) => a.indexOf(v) === i).join(' · ');
     el.append(
-      h('div', { class: 'cap-src' }, h('span', { class: 'cap-dot', style: { '--c': p.color || '#fff' } }), p.name || item.src, item.license ? h('span', { class: 'cap-lic' }, '· ' + U.truncate(item.license, 48)) : ''),
+      h('div', { class: 'cap-src' }, h('span', { class: 'cap-dot', style: { '--c': p.color || '#fff' } }), h('span', { class: 'cap-name' }, p.name || item.src), item.license ? h('span', { class: 'cap-lic' }, '· ' + U.truncate(item.license, 48)) : ''),
       h('div', { class: 'cap-title' + (item.kind === 'art' ? '' : ' upright') }, U.truncate(U.text(item.title) || 'Untitled', 140), h('span', { class: 'cap-open' }, 'ⓘ')),
       meta ? h('div', { class: 'cap-meta' }, U.truncate(U.text(meta), 120)) : '',
       item.credit || item.detail ? h('div', { class: 'cap-credit' }, U.truncate(U.text([item.detail, item.credit].filter(Boolean).join(' · ')), 160)) : '');
