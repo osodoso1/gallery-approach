@@ -256,6 +256,103 @@
     },
   });
 
+  /* ── Motion: open video (played muted, on a loop) ───────────────────── */
+  const phone = () => Math.min(innerWidth, innerHeight) < 700;
+  const canPlay = type => { try { return !!document.createElement('video').canPlayType((type || '').split(';')[0] ? type : 'video/mp4'); } catch (e) { return false; } };
+  const NOT_SCENIC = /interview|briefing|conference|news|remarks|update|live|talk|lecture|webinar|chat|town hall|panel|press|q ?& ?a|this week|tour|ceremony|award|explain|meet |how to|podcast|trailer|teaser|reel|sizzle|recap|status|minute|crew|preview|speech|hearing|announce|forum|event|testimony|ask an/i;
+
+  const NASA_VIDEO_TERMS = ['earth from space timelapse', 'aurora from space', 'solar dynamics observatory sun', 'earth at night', 'hubble zoom', 'webb telescope zoom', 'rocket launch slow motion', 'space station flyover', 'earthrise', 'moon phase', 'hurricane from space', 'galaxy visualization', 'nebula flythrough', 'black hole visualization', 'sun timelapse', 'clouds from space'];
+  def({
+    id: 'nasavideo', name: 'NASA video', sub: 'Time-lapses and visualizations · generally not copyrighted', color: '#4f9cff', group: 'motion', home: 'https://images.nasa.gov/',
+    async fetchBatch() {
+      const q = U.pick(NASA_VIDEO_TERMS);
+      const d = await deepFetch(`nasavideo|${q}`, 40, (pg, n) => `https://images-api.nasa.gov/search?q=${encodeURIComponent(q)}&media_type=video&page_size=${n}&page=${pg}`,
+        j => j.collection && j.collection.metadata && j.collection.metadata.total_hits, j => j.collection && j.collection.items);
+      const picks = U.shuffle(((d.collection && d.collection.items) || []).filter(it => it.data && it.data[0] && !NOT_SCENIC.test(it.data[0].title || ''))).slice(0, 4);
+      const pref = phone() ? ['~mobile', '~small', '~medium', '~preview', '~large', '~orig'] : ['~medium', '~large', '~small', '~mobile', '~orig'];
+      const out = await Promise.allSettled(picks.map(async it => {
+        const m = it.data[0];
+        const a = await U.fetchJSON(`https://images-api.nasa.gov/asset/${encodeURIComponent(m.nasa_id)}`);
+        const mp4 = ((a.collection && a.collection.items) || []).map(x => String(x.href || '').replace(/^http:/, 'https:').replace(/ /g, '%20')).filter(h => /\.mp4$/i.test(h));
+        const rank = h => { const i = pref.findIndex(p => h.includes(p + '.')); return i < 0 ? 99 : i; };
+        const urls = mp4.sort((x, y) => rank(x) - rank(y)).slice(0, 3);
+        if (!urls.length) return null;
+        return { key: 'nasav:' + m.nasa_id, src: 'nasavideo', kind: 'motion', video: { urls }, title: m.title, creator: m.photographer || m.secondary_creator || (m.center ? 'NASA ' + m.center : 'NASA'), date: (m.date_created || '').slice(0, 4), license: 'NASA · generally not copyrighted', link: `https://images.nasa.gov/details/${encodeURIComponent(m.nasa_id)}` };
+      }));
+      return out.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
+    },
+  });
+
+  // Wikimedia Commons: openly licensed video, including clips uploaded by museums and archives.
+  const COMMONS_VIDEO_TERMS = ['timelapse', 'time-lapse clouds', 'aurora', 'jellyfish', 'kaleidoscope', 'abstract animation', 'animated film 1910s', 'Winsor McCay', 'Emile Cohl', 'zoetrope', 'Muybridge animation', 'ferrofluid', 'slow motion', 'bioluminescence', 'ocean waves', 'fireworks', 'starry sky timelapse', 'sunset timelapse', 'museum', 'paint mixing', 'ink in water', 'flowers blooming timelapse', 'murmuration', 'lava flow', 'northern lights', 'snowflake', 'clockwork automaton', 'stop motion'];
+  def({
+    id: 'commonsvideo', name: 'Wikimedia Commons video', sub: 'Open-licence clips, including from museums and archives', color: '#3fb6c7', group: 'motion', home: 'https://commons.wikimedia.org/wiki/Commons:Featured_videos',
+    async fetchBatch() {
+      const q = U.pick(COMMONS_VIDEO_TERMS) + (Math.random() < 0.3 ? ' incategory:"Featured videos"' : '');
+      const d = await U.fetchJSON('https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=6&gsrlimit=20'
+        + `&gsroffset=${U.randInt(0, 3) * 20}&gsrsearch=${encodeURIComponent(q + ' filetype:video')}`
+        + '&prop=videoinfo&viprop=url|size|mime|extmetadata|derivatives&viextmetadatafilter=Artist|LicenseShortName|ObjectName|DateTimeOriginal');
+      const target = phone() ? 480 : 720;
+      return Object.values((d.query && d.query.pages) || {}).map(p => {
+        const vi = p.videoinfo && p.videoinfo[0]; if (!vi) return null;
+        if (vi.duration != null && (vi.duration < 6 || vi.duration > 4 * 3600)) return null;
+        if (NOT_SCENIC.test(p.title)) return null;
+        const ders = (vi.derivatives || []).filter(x => x.src && /video/.test(x.type || '') && canPlay(x.type) && (x.height || x.width));
+        ders.sort((a, b) => Math.abs((a.height || 0) - target) - Math.abs((b.height || 0) - target));
+        const urls = ders.map(x => x.src).slice(0, 3);
+        if (canPlay(vi.mime) && vi.size < 80e6) urls.push(vi.url);
+        if (!urls.length) return null;
+        const em = vi.extmetadata || {}, v = k => U.text(em[k] && em[k].value);
+        return { key: 'wmv:' + p.pageid, src: 'commonsvideo', kind: 'motion', video: { urls }, title: v('ObjectName') || p.title.replace(/^File:/, '').replace(/\.[a-z0-9]+$/i, '').replace(/_/g, ' '), creator: U.truncate(v('Artist'), 80), date: (v('DateTimeOriginal') || '').slice(0, 10), license: v('LicenseShortName') || 'See file page', link: vi.descriptionurl };
+      }).filter(Boolean);
+    },
+  });
+
+  // The Internet Archive: animated films from 1900–1930, which are in the public domain in the US.
+  const ARCHIVE_Q = ['collection:(animationandcartoons OR classic_cartoons) AND mediatype:movies AND year:[1900 TO 1930]', 'mediatype:movies AND subject:(animation) AND year:[1900 TO 1930]'];
+  def({
+    id: 'archivefilm', name: 'Early animation', sub: 'Internet Archive · cartoons and animated films from 1900–1930, public domain in the US', color: '#d9a35b', group: 'motion', home: 'https://archive.org/details/animationandcartoons',
+    async fetchBatch() {
+      const q = U.pick(ARCHIVE_Q);
+      const d = await deepFetch(`archivefilm|${q}`, 50, (pg, n) => `https://archive.org/advancedsearch.php?q=${encodeURIComponent(q)}&fl[]=identifier&fl[]=title&fl[]=year&fl[]=creator&rows=${n}&page=${pg}&output=json`,
+        j => j.response && j.response.numFound, j => j.response && j.response.docs);
+      const docs = U.shuffle((d.response && d.response.docs) || []).slice(0, 3);
+      const out = await Promise.allSettled(docs.map(async doc => {
+        const m = await U.fetchJSON(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`);
+        const files = (m.files || []).filter(f => /\.mp4$/i.test(f.name || '') && /h\.264|mpeg4/i.test(f.format || ''));
+        files.sort((a, b) => (/512kb/i.test(a.format) ? 1 : 0) - (/512kb/i.test(b.format) ? 1 : 0));   // prefer the better encode
+        if (!files.length) return null;
+        const md = m.metadata || {}, year = Number(String(md.year || md.date || doc.year || '').slice(0, 4));
+        if (year && year > 1930) return null;
+        const urls = files.slice(0, 2).map(f => `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${f.name.split('/').map(encodeURIComponent).join('/')}`);
+        const one = v => (Array.isArray(v) ? v[0] : v) || '';
+        return { key: 'ia:' + doc.identifier, src: 'archivefilm', kind: 'motion', video: { urls }, title: U.text(one(md.title) || doc.title || doc.identifier), creator: U.text(one(md.creator) || one(doc.creator)), date: year ? String(year) : '', license: 'Public domain in the US (made before 1931)', link: `https://archive.org/details/${encodeURIComponent(doc.identifier)}` };
+      }));
+      return out.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value);
+    },
+  });
+
+  // Europeana: video from Europe's museums and archives with open licences (needs a free key).
+  const EUROPEANA_TERMS = ['animation', 'dance', 'art', 'painting', 'sculpture', 'museum', 'nature', 'sea', 'city', 'puppet', 'ballet', 'flowers', 'birds', 'film 1920', 'abstract', 'light'];
+  const rightsLabel = r => (/publicdomain\/zero/.test(r) ? 'CC0' : /publicdomain\/mark/.test(r) ? 'Public domain' : /by-sa/.test(r) ? 'CC BY-SA' : /\/by\//.test(r) ? 'CC BY' : 'Open licence');
+  def({
+    id: 'europeana', name: 'Europeana video', sub: 'Open video from Europe\'s museums and archives · needs a free key', color: '#b48cff', group: 'motion', needsKey: 'europeanaKey', home: 'https://pro.europeana.eu/page/get-api',
+    async fetchBatch() {
+      const key = SS.settings.europeanaKey; if (!key) throw new Error('add a free Europeana key in Settings');
+      const q = U.pick(EUROPEANA_TERMS);
+      const d = await deepFetch(`europeana|${q}`, 50, (pg, n) => `https://api.europeana.eu/record/v2/search.json?wskey=${encodeURIComponent(key)}&query=${encodeURIComponent(q)}&qf=TYPE:VIDEO&reusability=open&media=true&profile=rich&rows=${n}&start=${(pg - 1) * n + 1}`,
+        j => j.totalResults, j => j.items);
+      return ((d.items || [])).map(it => {
+        const src = (it.edmIsShownBy || [])[0] || '';
+        if (!/\.(mp4|m4v|webm|mov)(\?|$)/i.test(src)) return null;
+        if (/\.webm/i.test(src) && !canPlay('video/webm')) return null;
+        const title = U.text((it.title || [])[0] || (it.dcTitleLangAware && Object.values(it.dcTitleLangAware)[0][0]) || 'Untitled');
+        if (NOT_SCENIC.test(title)) return null;
+        return { key: 'eu:' + it.id, src: 'europeana', kind: 'motion', video: { urls: [src.replace(/^http:/, 'https:')] }, title, creator: U.text((it.dataProvider || [])[0] || (it.dcCreator || [])[0] || ''), date: String((it.year || [])[0] || ''), license: rightsLabel((it.rights || [])[0] || ''), link: it.guid || `https://www.europeana.eu/item${it.id}` };
+      }).filter(Boolean).slice(0, 6);
+    },
+  });
+
   // Windows Spotlight + Bing daily — fetched and archived by the companion server
   // (their endpoints don't allow browser cross-origin requests).
   def({
@@ -326,7 +423,7 @@
     pool.fetching[id] = true;
     try {
       let items = await prov.fetchBatch();
-      items = (items || []).filter(it => it && (it.load || it.gen || it.live || (it.urls && it.urls.some(Boolean))) && (id === 'personal' || (!pool.history.has(it.key) && !pool.queuedKeys.has(it.key))));
+      items = (items || []).filter(it => it && (it.load || it.gen || it.live || it.video || (it.urls && it.urls.some(Boolean))) && (id === 'personal' || (!pool.history.has(it.key) && !pool.queuedKeys.has(it.key))));
       if (id !== 'personal') items.forEach(it => pool.queuedKeys.add(it.key));
       (pool.queues[id] = pool.queues[id] || []).push(...(id === 'personal' ? items : U.shuffle(items)));
       pool.fails[id] = 0;

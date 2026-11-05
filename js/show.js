@@ -10,6 +10,7 @@
     try {
       const r = C.render(item, loaded, st);
       if (loaded.img) item.shown = { url: loaded.url || '', w: loaded.img.naturalWidth, h: loaded.img.naturalHeight };
+      if (loaded.video) item.shown = { url: loaded.url || '', w: loaded.video.videoWidth, h: loaded.video.videoHeight };
       return { item, canvas: r.canvas, mode: r.mode, loaded, st, live: r.live };
     } finally { if (loaded.revoke) setTimeout(loaded.revoke, 2000); }
   }
@@ -88,7 +89,7 @@
       const playing = SS.fx.play(fxId, A, B, st, { host: U.$('#fx'), variant: opts.variant, speed: S.cur ? null : 1.4 });
       // The transition layer now covers the stage, so the old slide can go.
       const old = S.cur;
-      if (old) { old.kbAnim && old.kbAnim.cancel(); old.el && old.el.remove(); old.live && old.live.stop(); }
+      if (old) { old.kbAnim && old.kbAnim.cancel(); old.el && old.el.remove(); old.live && (old.live.stop(), old.live.dispose && old.live.dispose()); }
       const res = await playing;
       mount(nx);
       res.layer.remove();
@@ -125,6 +126,7 @@
     const sec = SS.settings.slideSeconds;
     const it = S.cur && S.cur.item;
     if (it && it.src === 'living') return (SS.settings.liveSeconds || 180) * 1000;
+    if (it && it.kind === 'motion') return Math.min(SS.settings.liveSeconds || 180, 120) * 1000;   // videos: up to 2 minutes
     return (it && it.src === 'generative' ? Math.min(sec, SS.settings.genSeconds || 120) : sec) * 1000;
   };
   function schedule(ms) {

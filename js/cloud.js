@@ -7,7 +7,7 @@
   const U = SS.u;
   const CL = (SS.cloud = { on: false, status: 'off', uid: null, db: null, assets: null, photos: [], usage: null, uploading: 0 });
   // API keys and private calendar links stay on each device.
-  const DEVICE_ONLY = ['harvardKey', 'icsUrls', 'env.pollenKey', 'serverUrl', 'syncKey', '_at'];
+  const DEVICE_ONLY = ['harvardKey', 'europeanaKey', 'icsUrls', 'env.pollenKey', 'serverUrl', 'syncKey', '_at'];
   const getP = (o, p) => p.split('.').reduce((x, k) => (x == null ? x : x[k]), o);
   const setP = (o, p, v) => { const ks = p.split('.'); let x = o; for (let i = 0; i < ks.length - 1; i++) { if (x[ks[i]] == null) x[ks[i]] = {}; x = x[ks[i]]; } x[ks[ks.length - 1]] = v; };
 
