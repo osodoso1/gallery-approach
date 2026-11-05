@@ -256,6 +256,99 @@
     },
   });
 
+  /* ── Wikimedia Commons image search, reaching the whole result set (not just the top hits) ── */
+  const COMMONS = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*';
+  const fileTitle = t => String(t || '').replace(/^File:/, '').replace(/\.(jpe?g|png|tiff?|webp|gif)$/i, '').replace(/_/g, ' ');
+  async function commonsImages(key, q, size, pick, map) {
+    const d = await deepFetch(key, size, (pg, n) => `${COMMONS}&list=search&srnamespace=6&srsearch=${encodeURIComponent(q)}&srlimit=${n}&sroffset=${(pg - 1) * n}&srinfo=totalhits&srprop=`,
+      j => j.query && j.query.searchinfo && j.query.searchinfo.totalhits, j => j.query && j.query.search);
+    const titles = U.shuffle(((d.query && d.query.search) || []).map(r => r.title)).slice(0, pick);
+    if (!titles.length) return [];
+    const w = big() ? 2560 : 1920;
+    const ii = await U.fetchJSON(`${COMMONS}&prop=imageinfo&iiprop=url|size|mime|extmetadata&iiurlwidth=${w}&iiextmetadatafilter=ObjectName|Artist|LicenseShortName|DateTimeOriginal&titles=${encodeURIComponent(titles.join('|'))}`);
+    return Object.values((ii.query && ii.query.pages) || {}).map(p => {
+      const im = p.imageinfo && p.imageinfo[0]; if (!im || !im.thumburl) return null;
+      if (!/image\/(jpeg|png|webp|tiff)/.test(im.mime || '')) return null;
+      const em = im.extmetadata || {}, v = k => U.text(em[k] && em[k].value);
+      return map(p, im, v);
+    }).filter(Boolean);
+  }
+  const commonsUrls = im => [im.thumburl, im.size < 12e6 && /jpeg|png|webp/.test(im.mime) ? im.url : null];
+
+  /* ── Movie posters: classic film posters that are in the public domain ─────────────────────── */
+  // Wikimedia Commons only keeps free files, and most US posters from before 1964 are public domain
+  // (no copyright notice, or the copyright was never renewed). One year at a time, picked at random.
+  const posterYear = () => (Math.random() < 0.85 ? U.randInt(1910, 1965) : U.randInt(1966, 1977));
+  const cleanPoster = t => {
+    const c = fileTitle(t).replace(/\((?:[^()]*\b(?:poster|one[- ]sheet|half[- ]sheet|lobby card|style [a-z])\b[^()]*)\)/ig, '')
+      .replace(/\s*[-–,]\s*(?:theatrical |film |movie |re-?release |original |us )*(?:poster|one[- ]sheet|half[- ]sheet|window card)\b.*$/i, '')
+      .replace(/\b(?:theatrical|film|movie)\s+poster\b/ig, '').replace(/\bposter\b/ig, '').replace(/\s{2,}/g, ' ').replace(/^[\s\-–,]+|[\s\-–,(]+$/g, '').trim();
+    return c || fileTitle(t);
+  };
+  def({
+    id: 'posters', name: 'Movie posters', sub: 'Classic film posters in the public domain · Wikimedia Commons', color: '#f2c14e', group: 'posters', home: 'https://commons.wikimedia.org/wiki/Category:Film_posters_of_the_United_States',
+    async fetchBatch() {
+      for (let tries = 0; tries < 3; tries++) {      // some years only have a handful, so try another year if one comes up empty
+        const year = posterYear();
+        const items = await commonsImages(`posters|${year}`, `incategory:"${year} film posters of the United States"`, 30, 10, (p, im, v) => {
+          if ((im.width || 0) < 600 || (im.height || 0) < 700) return null;                        // too small to hang
+          const title = cleanPoster(v('ObjectName') || p.title).replace(new RegExp(`[\\s,(]+${year}\\)?$`), '') || cleanPoster(p.title);
+          return { key: 'wm:' + p.pageid, src: 'posters', kind: 'art', urls: commonsUrls(im), title,
+            creator: U.truncate(v('Artist'), 80), date: String(year), detail: 'Film poster', license: v('LicenseShortName') || 'Public domain', link: im.descriptionurl };
+        });
+        if (items.length) return items;
+      }
+      return [];
+    },
+  });
+
+  /* ── Science: microscopy, crystals, specimens and the great scientific illustrators ─────────── */
+  const SCI_SKIP = /cancer|tumou?r|wound|lesion|corpse|cadaver|autops|dissect|surg(?:ery|ical)|f(?:o)?etus|disease|syphilis|lepros|plague|smallpox|ulcer|gangrene|tapeworm|deform|injur|patient|execution|torture|war\b|weapon|gun\b|nude|naked|genital|sex/i;
+  const SCI_FEATURED = ['micrograph', 'microscope', 'crystal', 'mineral', 'geode', 'fossil', 'skeleton', 'diatom', 'snowflake', 'jellyfish', 'radiolaria', 'butterfly wing', 'shell', 'coral', 'lichen', 'fungus', 'pollen',
+    'feather', 'leaf', 'seed', 'insect', 'beetle', 'moth', 'dragonfly', 'spider web', 'lightning', 'aurora', 'nebula', 'soap bubble', 'interference', 'polarized light', 'chemistry', 'botanical illustration', 'scientific illustration', 'anatomy'];
+  const SCI_CLASSIC = ['Kunstformen der Natur', 'Haeckel radiolaria', 'Haeckel plate', 'Micrographia Hooke', 'Trouvelot astronomical drawings', 'Blaschka glass', 'Audubon Birds of America plate', 'Maria Sibylla Merian',
+    'Albertus Seba Thesaurus', 'Wilson Bentley snowflake', 'Redouté Les Liliacées', 'Besler Hortus Eystettensis', 'Köhler Medizinal-Pflanzen', 'Sowerby mineralogy', 'Brehms Tierleben plate', 'Haeckel Kunstformen Diatomea', 'Gould birds plate', 'Seba shells', 'Ramón y Cajal drawing', 'Chladni figures'];
+  def({
+    id: 'sciart', name: 'Science pictures', sub: 'Micrographs, crystals, specimens and classic plates (Haeckel, Hooke, Trouvelot, Audubon) · Wikimedia Commons', color: '#5ad1b0', group: 'science', home: 'https://commons.wikimedia.org/wiki/Commons:Featured_pictures/Non-photographic_media/Science',
+    async fetchBatch() {
+      const r = Math.random();
+      const classic = r < 0.45, micro = r >= 0.45 && r < 0.6;
+      const term = classic ? U.pick(SCI_CLASSIC) : micro ? '' : U.pick(SCI_FEATURED);
+      const q = (classic ? term : micro ? 'incategory:"Featured pictures taken through a microscope"' : `${term} incategory:"Featured pictures on Wikimedia Commons"`) + ' filetype:bitmap';
+      return commonsImages(`sciart|${q}`, q, 40, 10, (p, im, v) => {
+        const title = v('ObjectName') || fileTitle(p.title);
+        if ((im.width || 0) < 1000 || SCI_SKIP.test(title + ' ' + p.title)) return null;
+        const ratio = im.width / im.height; if (ratio > 3.2 || ratio < 0.3) return null;           // skip long strips and scanned pages
+        return { key: 'wm:' + p.pageid, src: 'sciart', kind: classic ? 'art' : 'photo', urls: commonsUrls(im), title,
+          creator: U.truncate(v('Artist'), 80), date: (v('DateTimeOriginal') || '').slice(0, 10), detail: classic ? term.replace(/ plate$/, '') : '', license: v('LicenseShortName') || 'See file page', link: im.descriptionurl };
+      });
+    },
+  });
+
+  const WELLCOME_TERMS = ['scanning electron micrograph', 'light micrograph', 'crystals', 'pollen', 'diatoms', 'neurons', 'brain', 'DNA', 'virus', 'protein', 'molecule', 'cells', 'bacteria colony', 'botanical illustration', 'herbal',
+    'anatomical illustration', 'skeleton', 'heart', 'eye', 'butterfly', 'moth', 'beetle', 'shells', 'seaweed', 'fungi', 'chemistry', 'alchemy', 'astronomy', 'zodiac', 'planets', 'microscope', 'MRI', 'bone', 'feather', 'flower', 'seeds', 'fossil', 'minerals', 'coral', 'plankton'];
+  const WC_LIC = { 'cc-by': 'CC BY 4.0', 'cc-by-nc': 'CC BY-NC 4.0 · personal use', pdm: 'Public domain', 'cc-0': 'CC0' };
+  def({
+    id: 'wellcome', name: 'Wellcome Collection', sub: 'Science and medicine images: micrographs, molecules, botany, astronomy · CC BY / public domain', color: '#7bd389', group: 'science', home: 'https://wellcomecollection.org/search/images',
+    async fetchBatch() {
+      const q = U.pick(WELLCOME_TERMS);
+      const d = await deepFetch(`wellcome|${q}`, 30, (pg, n) => `https://api.wellcomecollection.org/catalogue/v2/images?query=${encodeURIComponent(q)}&locations.license=${Object.keys(WC_LIC).join(',')}&pageSize=${n}&page=${pg}`,
+        j => j.totalResults, j => j.results);
+      return (d.results || []).map(im => {
+        const loc = (im.locations || []).find(l => l && l.url && /iiif/.test(l.url)) || im.thumbnail;
+        if (!loc || !loc.url) return null;
+        const lic = loc.license || {};
+        if (lic.id && !WC_LIC[lic.id]) return null;
+        const title = U.text(im.source && im.source.title) || 'Untitled';
+        if (SCI_SKIP.test(title)) return null;
+        const base = loc.url.replace(/\/info\.json$/, '');
+        return { key: 'wc:' + im.id, src: 'wellcome', kind: 'art', urls: [`${base}/full/!2048,2048/0/default.jpg`, `${base}/full/1024,/0/default.jpg`, `${base}/full/640,/0/default.jpg`],
+          title, creator: U.text(loc.credit) || 'Wellcome Collection', license: WC_LIC[lic.id] || U.text(lic.label) || 'See source',
+          link: im.source && im.source.id ? `https://wellcomecollection.org/works/${im.source.id}/images?id=${im.id}` : 'https://wellcomecollection.org/search/images' };
+      }).filter(Boolean);
+    },
+  });
+
   /* ── Motion: open video (played muted, on a loop) ───────────────────── */
   const phone = () => Math.min(innerWidth, innerHeight) < 700;
   const canPlay = type => { try { return !!document.createElement('video').canPlayType((type || '').split(';')[0] ? type : 'video/mp4'); } catch (e) { return false; } };
@@ -457,6 +550,26 @@
     async fetchBatch() { return SS.photos.nextBatch(10).map(SS.photos.toItem); },
   };
 
+  /* ── Genres: what kind of picture it is. Tick the ones you want on screen. ── */
+  // living, generative and "my photos" use the switch they already had, so there's only ever one switch for each.
+  const GENRES = (SS.genres = [
+    { id: 'paintings', name: 'Paintings & museum art', sub: 'The Met, Art Institute of Chicago, Cleveland, SMK, Rijksmuseum, V&A', color: '#e5484d', srcs: ['met', 'aic', 'cleveland', 'smk', 'rijks', 'vam', 'harvard'] },
+    { id: 'photography', name: 'Photography', sub: 'Wikimedia Commons featured pictures, Spotlight, Bing', color: '#3fb6c7', srcs: ['wikimedia', 'spotlight', 'bing'] },
+    { id: 'posters', name: 'Movie posters', sub: 'Classic film posters in the public domain', color: '#f2c14e', srcs: ['posters'] },
+    { id: 'science', name: 'Science', sub: 'Micrographs, crystals, Haeckel, Wellcome Collection', color: '#5ad1b0', srcs: ['sciart', 'wellcome'] },
+    { id: 'space', name: 'Space', sub: 'NASA photos and video', color: '#4f7cff', srcs: ['nasa', 'nasavideo'] },
+    { id: 'cartoons', name: 'Cartoons & early film', sub: 'Steamboat Willie, Silly Symphonies, early animation', color: '#e8574a', srcs: ['classics', 'archivefilm'] },
+    { id: 'video', name: 'Nature & museum video', sub: 'Open clips from Wikimedia Commons and Europeana', color: '#2fb59a', srcs: ['commonsvideo', 'europeana'] },
+    { id: 'living', name: 'Living art', sub: 'Pong Wars, Life, rocket launches, a double helix', color: '#e4b95c', srcs: ['living'],
+      get: () => (SS.settings.weights.living || 0) > 0, set: v => SS.setSetting('weights.living', v ? (SS.settings.livingWas || 2) : (SS.settings.livingWas = SS.settings.weights.living || 2, 0)) },
+    { id: 'generative', name: 'Generative art', sub: 'Abstract pieces this app draws in code', color: '#f4f1ea', srcs: ['generative'],
+      get: () => (SS.settings.weights.generative ?? 1) >= 1, set: v => SS.setSetting('weights.generative', v ? 1 : -1) },
+    { id: 'mine', name: 'My photos', sub: 'From this device or the Pi folder', color: '#ffb547', srcs: ['personal'],
+      get: () => !!SS.settings.personalOn, set: v => SS.setSetting('personalOn', v) },
+  ]);
+  const GBY = {}; GENRES.forEach(g => { GBY[g.id] = g; g.srcs.forEach(id => { if (P[id]) P[id].genre = g.id; }); });
+  SS.genreById = GBY;
+
   /* ── Mixer ─────────────────────────────────────────── */
   const pool = (SS.pool = { reach: {}, queues: {}, fetching: {}, fails: {}, cooldown: {}, status: {}, queuedKeys: new Set(), history: new Set(U.store.get('history', [])), recent: U.store.get('recentArt', []) });
   const saveHistory = U.debounce(() => { U.store.set('history', Array.from(pool.history).slice(-900)); U.store.set('recentArt', pool.recent.slice(-40)); }, 2000);
@@ -469,16 +582,33 @@
     return list.length ? Object.assign({}, U.pick(list), { rerun: true }) : null;
   };
   // Turning generative art off takes effect now: drop a prepared generative slide and skip one that's showing.
-  pool.genChanged = function () {
+  pool.genChanged = function (genres) {
     pool.warm();
+    if (genres) {   // a genre was ticked or unticked: the picture lined up next may not belong any more
+      SS.show.nextP = null;
+      const cur = SS.show.cur && SS.show.cur.item;
+      if (cur && !pool.allowed(cur)) SS.show.advance();
+      return;
+    }
     if (pool.genAllowed()) return;
     SS.show.nextP = null;
     if (SS.show.cur && SS.show.cur.item.src === 'generative') SS.show.advance();
   };
+  pool.genreOfItem = it => (it.src === 'personal' ? 'mine' : P[it.src] && P[it.src].genre);
+  pool.allowed = it => { const g = pool.genreOfItem(it); return !g || pool.genreOn(g); };
   pool.fallback = () => (pool.genAllowed() ? SS.gen.make() : pool.rerun());
 
+  pool.genreOn = g => { g = typeof g === 'string' ? GBY[g] : g; return !!g && (g.get ? g.get() : (SS.settings.genres || {})[g.id] !== false); };
+  pool.setGenre = (id, on) => {
+    const g = GBY[id]; if (!g) return;
+    if (g.set) g.set(on); else SS.setSetting('genres.' + id, on);
+    if (id === 'mine') pool.resetPersonal();
+    if (pool.run && pool.run.genre === id && !on) pool.run = null;
+    pool.genChanged(true);
+  };
   pool.weightOf = id => {
     const p = P[id]; if (!p) return 0;
+    if (p.genre && GBY[p.genre] && !GBY[p.genre].get && !pool.genreOn(p.genre)) return 0;   // genre unticked
     const w = SS.settings.weights[id] ?? 0;
     if (!w) return 0;
     if (p.needsServer && !SS.server.available) return 0;
@@ -512,8 +642,88 @@
   };
   pool.resetPersonal = () => { pool.queues.personal = []; pool.warm(); };
 
+  /* Shuffle: one genre at a time, picked at random, a few pictures each (a run of posters, then science, then…).
+     Every ticked genre gets an equal chance, however many sources it has. "Shuffle now" starts a new run straight away. */
+  const LONG = new Set(['living', 'video', 'cartoons', 'generative']);       // these stay up for minutes, so their runs are short
+  pool.run = null;
+  pool.genreReady = id => {
+    if (id === 'mine') return SS.settings.personalOn && SS.photos.count > 0;
+    if (id === 'generative') return GBY.generative.get();
+    return GBY[id].srcs.some(sid => P[sid] && pool.weightOf(sid) > 0 && ((pool.queues[sid] || []).length || pool.fetching[sid] || (pool.fails[sid] || 0) < 3));
+  };
+  // Why a ticked genre can't show anything right now (empty when it can).
+  pool.genreWhy = id => {
+    if (pool.genreReady(id)) return '';
+    if (id === 'mine') return 'No photos added yet';
+    const srcs = GBY[id].srcs.map(sid => P[sid]).filter(Boolean);
+    const usable = srcs.filter(p => (SS.settings.weights[p.id] || 0) > 0);
+    if (!usable.length) return 'Its sources are off (Fine-tune sources)';
+    if (usable.every(p => (p.needsServer && !SS.server.available) || (p.needsKey && !SS.settings[p.needsKey]))) return usable.some(p => p.needsKey) ? 'Needs a free API key (Fine-tune sources)' : 'Needs the Pi or computer server';
+    return SS.env.cspBlocked ? 'Can\'t reach outside sites from this preview' : 'Nothing can load right now';
+  };
+  pool.choices = () => GENRES.filter(g => pool.genreOn(g) && pool.genreReady(g.id));
+  // Something ready to show right now? (living, generative and photos on this device always are)
+  pool.hasQueued = id => (id === 'mine' ? (pool.queues.personal || []).length > 0 : id === 'generative' || id === 'living' || GBY[id].srcs.some(sid => P[sid] && pool.weightOf(sid) > 0 && (pool.queues[sid] || []).length));
+  pool.newRun = function (avoid, now) {
+    const all = pool.choices(), fresh = all.filter(g => g.id !== avoid);
+    let list = fresh.length ? fresh : all;
+    if (now) { const ready = list.filter(g => pool.hasQueued(g.id)); if (ready.length) list = ready; }
+    const g = U.pick(list);
+    pool.run = g ? { genre: g.id, left: LONG.has(g.id) ? U.randInt(1, 2) : U.randInt(3, 6), fresh: true, since: Date.now() } : null;
+    pool.warm();
+    return pool.run;
+  };
+  pool.shuffleNow = function () {
+    const r = pool.newRun(pool.run ? pool.run.genre : SS.show.cur && pool.genreOfItem(SS.show.cur.item), true);
+    if (!r) return null;
+    r.announced = true;
+    SS.show.nextP = null;
+    let n = 0;
+    const go = () => (SS.show.busy && n++ < 40 ? setTimeout(go, 150) : SS.show.advance());   // let a transition that's playing finish first
+    go();
+    return GBY[r.genre];
+  };
+  function takeFrom(id) {
+    const item = pool.queues[id].shift();
+    pool.status[id] && (pool.status[id].queued = pool.queues[id].length);
+    return item;
+  }
+  function takeRun() {
+    let r = pool.run;
+    if (!r || r.left <= 0 || !pool.genreOn(r.genre) || !pool.genreReady(r.genre)) {
+      const had = !!r;
+      if (!SS.settings.shuffle && had) { pool.run = null; return undefined; }   // a one-off "Shuffle now" run has ended
+      r = pool.newRun(r && r.genre);
+      if (!r) return undefined;
+    }
+    let item = null;
+    if (r.genre === 'mine') item = (pool.queues.personal || []).length ? takeFrom('personal') : null;
+    else if (r.genre === 'generative') item = SS.gen.make();
+    else {
+      const cands = GBY[r.genre].srcs.filter(id => P[id] && pool.weightOf(id) > 0 && (pool.queues[id] || []).length);
+      if (cands.length) {
+        let x = Math.random() * cands.reduce((a, c) => a + pool.weightOf(c), 0), id = cands[cands.length - 1];
+        for (const c of cands) { x -= pool.weightOf(c); if (x <= 0) { id = c; break; } }
+        item = takeFrom(id);
+      }
+    }
+    if (!item) {   // nothing ready in this genre yet: wait a moment, then move on to another one
+      pool.warm();
+      if (Date.now() - r.since > 4500) pool.newRun(r.genre);
+      return null;
+    }
+    if (r.fresh) { r.fresh = false; item.runStart = r.announced ? null : r.genre; }
+    r.left--;
+    pool.warm();
+    return item;
+  }
+
   pool.take = function () {
     const s = SS.settings;
+    if (s.shuffle || pool.run) {
+      const it = takeRun();
+      if (it !== undefined) return it;
+    }
     const personal = s.personalOn && SS.photos.count > 0 && (pool.queues.personal || []).length > 0;
     const cands = ORDER.filter(id => id !== 'generative' && pool.weightOf(id) > 0 && (pool.queues[id] || []).length);
     if (pool.weightOf('generative') > 0) cands.push('generative');

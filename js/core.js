@@ -46,6 +46,9 @@
     compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
     plane: '<path d="M12 2.5c.8 0 1.4.7 1.4 1.6V9l7.6 4.6v2.1l-7.6-2.3v4.8l2.2 1.7V21L12 20.1 8.4 21v-1.1l2.2-1.7v-4.8L3 15.7v-2.1L10.6 9V4.1c0-.9.6-1.6 1.4-1.6z"/>',
     down: '<path d="M6 9l6 6 6-6"/>',
+    genres: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
+    shuffle: '<path d="M3 7h3.5c2 0 3.2 1 4.3 2.6l2.4 4.8C14.3 16 15.5 17 17.5 17H21M18 14l3 3-3 3M3 17h3.5c1.4 0 2.4-.5 3.2-1.4M13.3 8.4c.8-.9 1.8-1.4 3.2-1.4H21M18 4l3 3-3 3"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   };
   U.icon = name => U.svg(U.icons[name] || '');
 
@@ -242,7 +245,7 @@
 
   /* ── Settings ── */
   const DEFAULTS = {
-    v: 5,
+    v: 6,
     slideSeconds: 120,          // how long each picture stays (seconds)
     genSeconds: 120,            // generative pieces never stay longer than this
     liveSeconds: 180,           // how long a living (animated) piece stays
@@ -257,8 +260,10 @@
     personalShare: 30,          // % of slides from your photos (when you have some)
     weights: {                  // 0 off · 1 low · 2 normal · 3 high  (generative: -1 never · 0 only if nothing else loads)
       met: 2, aic: 2, cleveland: 2, smk: 2, rijks: 1, vam: 1, harvard: 2,
-      wikimedia: 2, nasa: 1, spotlight: 2, bing: 2, generative: 1, living: 2, nasavideo: 1, commonsvideo: 1, archivefilm: 1, europeana: 1, classics: 2,
+      wikimedia: 2, nasa: 1, spotlight: 2, bing: 2, generative: 1, living: 2, nasavideo: 1, commonsvideo: 1, archivefilm: 1, europeana: 1, classics: 2, posters: 2, sciart: 2, wellcome: 2,
     },
+    genres: { paintings: true, photography: true, posters: true, science: true, space: true, cartoons: true, video: true },   // living, generative and my photos use their own switches
+    shuffle: false,             // one genre at a time, picked at random
     personalOn: true,
     harvardKey: '',
     europeanaKey: '',           // optional: free key from pro.europeana.eu for museum video
@@ -290,7 +295,7 @@
   if (!stored.v || stored.v < 3) { if (stored.weights && stored.weights.generative === 0) stored.weights.generative = 1; stored.v = 3; }
   if (stored.v < 5) { stored.flight = Object.assign({}, stored.flight, { locMode: (stored.flight && stored.flight.locMode) || 'device' }); }
   if (stored.v < 4) { if (stored.flight && typeof stored.flight.strip === 'boolean') stored.flight.strip = stored.flight.strip ? 'tab' : 'off'; }
-  stored.v = Math.max(stored.v || 0, 5);
+  stored.v = Math.max(stored.v || 0, 6);
   SS.settings = merge(DEFAULTS, stored);
   // Flight strip: 'tab' (tucked behind a small tab) | 'always' | 'off'. Older devices may sync a boolean.
   SS.stripMode = () => { const f = SS.settings.flight, v = f.strip; return !f.enabled || f.mode === 'off' || v === false || v === 'off' ? 'off' : v === 'always' ? 'always' : 'tab'; };

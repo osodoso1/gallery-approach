@@ -27,11 +27,11 @@
     if (SS.settings.calm > 0) calmT = setTimeout(goCalm, SS.settings.calm * 1000);
   };
   function goCalm() {
-    const cardOpen = (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen || (SS.env2 && SS.env2.openDay);
+    const cardOpen = (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen || UI.genres.isOpen || (SS.env2 && SS.env2.openDay);
     if (busy() || (cardOpen && Date.now() - lastPoke < 60000)) { calmT = setTimeout(goCalm, 5000); return; }
     document.body.classList.add('calm');
     SS.radar && (SS.radar.closeCard(), SS.radar.tuck());
-    UI.info.close(); UI.timer.close();
+    UI.info.close(); UI.timer.close(); UI.genres.close();
     SS.emit('calm', true);
   }
   UI.calmNow = () => { clearTimeout(calmT); clearTimeout(idleT); document.body.classList.remove('awake'); goCalm(); };
@@ -43,14 +43,14 @@
     clearTimeout(calmT); clearTimeout(idleT);
     B.classList.remove('awake', 'calm'); B.classList.add('art-only');
     SS.radar && (SS.radar.closeCard(), SS.radar.tuck());
-    UI.info.close(); UI.timer.close();
+    UI.info.close(); UI.timer.close(); UI.genres.close();
   };
   UI.showAll = function () { B.classList.remove('art-only'); UI.wakeUp(); };
   // Anything hidden (art only, or the timer has faded things) → show it all; everything showing → art only.
   UI.toggleArt = () => (UI.isArtOnly() || UI.isCalm() ? UI.showAll() : UI.artOnly());
 
   // Double-tap anywhere that isn't a button (the art, the open weather panel, the caption…): everything goes.
-  const NO_DBL = 'button, a, input, select, textarea, label, .wx-chips, .clk-next, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #hud, #panelTab, #stripTab, #flightStrip';
+  const NO_DBL = 'button, a, input, select, textarea, label, .wx-chips, .clk-next, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #genrePop, #hud, #panelTab, #stripTab, #flightStrip';
   let lastUp = { t: 0, x: 0, y: 0 };
   addEventListener('pointerup', e => {
     if (!e.isPrimary || UI.gameOpen) return;
@@ -76,7 +76,7 @@
         prev: () => SS.show.prev(), next: () => SS.show.advance(), play: () => SS.show.toggle(),
         fx: () => SS.settingsUI.open('fx'), photos: () => SS.settingsUI.open('photos'), panel: () => SS.planner.toggle(),
         radar: () => SS.radar.openBig(), settings: () => SS.settingsUI.open(), full: () => UI.fullscreen(),
-        info: () => UI.info.toggle(), timer: () => UI.timer.toggle(), clock: () => UI.toggleClock(),
+        info: () => UI.info.toggle(), timer: () => UI.timer.toggle(), clock: () => UI.toggleClock(), genres: () => UI.genres.toggle(),
       }[b.dataset.act] || (() => {}))();
     });
     U.$('#panelTab').addEventListener('click', () => SS.planner.open());
@@ -84,6 +84,8 @@
       const lab = U.$('#hudLabel');
       lab.textContent = SS.settings.fxLabel && fx ? '↻ ' + SS.fx.label(fx.id, fx.variant) : '';
     });
+    // Shuffle moved on to a new genre: say which, briefly.
+    SS.on('slide', ({ item }) => { if (item && item.runStart && SS.genreById[item.runStart]) U.toast(h('span', { class: 'toast-shuf' }, U.icon('shuffle'), 'Shuffle · ' + SS.genreById[item.runStart].name), 2600); if (UI.genres.isOpen) UI.genres.open(); });
   }
 
   /* ── Caption ── */
@@ -140,6 +142,7 @@
         item.kind === 'motion' ? h('p', { class: 'ic-note' }, 'A video, playing muted on a loop. It stays up to 2 minutes.') : '',
         living ? h('p', { class: 'ic-note' }, 'Living art: an animation this app draws live, right now, so every run plays out differently. The idea and its creator are credited below.') : '',
         row('Source', p.name || item.src),
+        row('Genre', SS.genreById[SS.pool.genreOfItem(item)] ? SS.genreById[SS.pool.genreOfItem(item)].name : ''),
         !mine && !gen ? row('By', U.text(item.creator)) : '',
         row(mine ? 'Taken' : 'Date', mine ? (item.taken ? U.fmt.date(item.taken) : '') : U.text(item.date)),
         row('Medium', !mine ? U.text(item.detail) : ''),
@@ -158,6 +161,7 @@
   document.addEventListener('pointerdown', e => {
     if (info.isOpen && !e.target.closest('#infoCard') && !e.target.closest('#caption') && !e.target.closest('#hud')) info.close();
     if (timer.isOpen && !e.target.closest('#timerPop') && !e.target.closest('#hud')) timer.close();
+    if (UI.genres.isOpen && !e.target.closest('#genrePop') && !e.target.closest('#hud')) UI.genres.close();
   });
 
   /* ── Picture timer ── */
@@ -174,7 +178,53 @@
     pop.hidden = false; timer.isOpen = true;
   };
   timer.close = () => { U.$('#timerPop').hidden = true; timer.isOpen = false; };
-  timer.toggle = () => (timer.isOpen ? timer.close() : timer.open());
+  timer.toggle = () => (timer.isOpen ? timer.close() : (UI.genres.close(), timer.open()));
+
+  /* ── Genres drop-down: tick what's in the mix, and shuffle ── */
+  const gp = (UI.genres = { isOpen: false });
+  UI.genreLabel = function () {
+    const b = U.$('#hud [data-act=genres]'); if (!b) return;
+    const G = SS.genres, on = G.filter(g => SS.pool.genreOn(g)).length, shuf = !!SS.settings.shuffle;
+    b.innerHTML = '';
+    b.classList.toggle('shuf', shuf);
+    b.append(U.icon(shuf ? 'shuffle' : 'genres'), h('span', { class: 'gl-n' }, on === G.length ? 'All' : String(on)), h('span', { class: 'gl-long' }, (on === 1 ? ' genre' : ' genres') + (shuf ? ' · shuffle' : '')), U.icon('down'));
+  };
+  gp.open = function () {
+    const pop = U.$('#genrePop'), P = SS.pool, G = SS.genres;
+    const keep = pop.querySelector('.gp-list'), top = keep ? keep.scrollTop : 0;
+    pop.innerHTML = '';
+    const on = G.filter(g => P.genreOn(g)).length, run = P.run;
+    const list = h('div', { class: 'gp-list' });
+    G.forEach(g => {
+      const isOn = P.genreOn(g), ready = P.genreReady(g.id);
+      const cb = h('input', { type: 'checkbox', 'aria-label': g.name }); cb.checked = isOn;
+      cb.addEventListener('change', () => {
+        if (!cb.checked && on <= 1) { cb.checked = true; U.toast('Keep at least one genre ticked'); return; }
+        P.setGenre(g.id, cb.checked); UI.genreLabel(); gp.open();
+      });
+      const why = (isOn && P.genreWhy(g.id)) || g.sub;
+      list.append(h('label', { class: 'gp-row' + (isOn ? ' on' : '') + (isOn && !ready ? ' idle' : '') },
+        cb, h('span', { class: 'gp-box' }, U.icon('check')), h('span', { class: 'cap-dot', style: { '--c': g.color } }),
+        h('span', { class: 'gp-txt' }, h('b', null, g.name, run && run.genre === g.id && SS.show.cur && P.genreOfItem(SS.show.cur.item) === g.id ? h('span', { class: 'gp-now' }, 'now') : ''), h('small', null, why))));
+    });
+    const shuf = !!SS.settings.shuffle;
+    const sw = h('input', { type: 'checkbox', 'aria-label': 'Shuffle' }); sw.checked = shuf;
+    sw.addEventListener('change', () => { SS.setSetting('shuffle', sw.checked); if (!sw.checked) P.run = null; UI.genreLabel(); gp.open(); });
+    const cur = run && SS.genreById[run.genre];
+    pop.append(
+      h('div', { class: 'tp-h gp-h' }, h('span', null, 'Genres'), h('span', { class: 'gp-count' }, `${on} of ${G.length} in the mix`)),
+      list,
+      h('div', { class: 'gp-shuffle' },
+        h('label', { class: 'gp-sw' }, h('span', { class: 'switch' }, sw, h('span')), h('span', null, h('b', null, 'Shuffle'), h('small', null, shuf ? (cur ? `Now: ${cur.name} · ${Math.max(0, run.left)} more, then a new genre` : 'One genre at a time, picked at random') : 'One genre at a time, picked at random'))),
+        h('button', { class: 'btn small gp-go', onclick: e => { e.stopPropagation(); const g = P.shuffleNow(); if (!g) return U.toast('Tick a genre that can load first'); U.toast(h('span', { class: 'toast-shuf' }, U.icon('shuffle'), 'Shuffle · ' + g.name), 2600); UI.genreLabel(); gp.open(); } }, U.icon('shuffle'), 'Shuffle now')),
+      h('div', { class: 'gp-foot' },
+        h('button', { class: 'linkish', onclick: () => { G.forEach(g => { if (!P.genreOn(g) && (g.id !== 'mine' || SS.photos.count)) (g.set ? g.set(true) : SS.setSetting('genres.' + g.id, true)); }); P.genChanged(true); UI.genreLabel(); gp.open(); } }, 'Tick all'),
+        h('button', { class: 'linkish', onclick: () => { gp.close(); SS.settingsUI.open('sources'); } }, 'Fine-tune sources →')));
+    pop.hidden = false; gp.isOpen = true;
+    const nl = pop.querySelector('.gp-list'); if (nl) nl.scrollTop = top;
+  };
+  gp.close = () => { U.$('#genrePop').hidden = true; gp.isOpen = false; };
+  gp.toggle = () => (gp.isOpen ? gp.close() : (UI.timer.close(), UI.info.close(), gp.open()));
 
   /* ── Clock + next event + tasks ── */
   UI.toggleClock = function () {
@@ -218,7 +268,7 @@
     stage.addEventListener('pointerdown', e => {
       sx = e.clientX; sy = e.clientY; st = Date.now();
       // something open (panel, a card, the timer)? then this tap just closes it
-      wasOpen = document.body.classList.contains('panel-open') || (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen;
+      wasOpen = document.body.classList.contains('panel-open') || (SS.radar && SS.radar.cardOpen) || UI.info.isOpen || UI.timer.isOpen || UI.genres.isOpen;
     });
     stage.addEventListener('pointerup', e => {
       const dx = e.clientX - sx, dy = e.clientY - sy, dt = Date.now() - st;
@@ -235,7 +285,7 @@
       seq.push(e.key.length === 1 ? e.key.toLowerCase() : e.key); seq = seq.slice(-KONAMI.length);
       if (seq.join() === KONAMI.join()) { seq = []; SS.settingsUI.close(); SS.game.open(); return; }
       if (SS.game.isOpen) return;
-      if (e.key === 'Escape') { if (UI.info.isOpen) UI.info.close(); else if (UI.timer.isOpen) UI.timer.close(); else if (SS.settingsUI.isOpen) SS.settingsUI.close(); else if (SS.radar.bigOpen) SS.radar.closeBig(); else if (SS.radar.cardOpen) SS.radar.closeCard(); else SS.planner.close(); return; }
+      if (e.key === 'Escape') { if (UI.info.isOpen) UI.info.close(); else if (UI.timer.isOpen) UI.timer.close(); else if (UI.genres.isOpen) UI.genres.close(); else if (SS.settingsUI.isOpen) SS.settingsUI.close(); else if (SS.radar.bigOpen) SS.radar.closeBig(); else if (SS.radar.cardOpen) SS.radar.closeCard(); else SS.planner.close(); return; }
       if (SS.settingsUI.isOpen) return;
       const k = e.key.toLowerCase();
       if (e.key === 'ArrowRight') SS.show.advance();
@@ -250,6 +300,8 @@
       else if (k === 'i') UI.info.toggle();
       else if (k === 'k') UI.toggleClock();
       else if (k === 'h') UI.toggleArt();
+      else if (k === 'g') UI.genres.toggle();
+      else if (k === 'x') { const g = SS.pool.shuffleNow(); if (g) U.toast(h('span', { class: 'toast-shuf' }, U.icon('shuffle'), 'Shuffle · ' + g.name), 2600); }
     });
   }
 
@@ -303,8 +355,8 @@
     UI.night(); setInterval(UI.night, 60000);
     setInterval(shift, 4 * 60000);
     SS.on('csp', banner); banner();
-    SS.on('agenda', UI.tickClock); SS.on('state', UI.tickClock); SS.on('settings', p => { if (p === 'cloud' || /clock|agenda|env/.test(p || '')) UI.tickClock(); if (p === 'cloud' || p === 'slideSeconds') UI.timerLabel(); if (p === 'calm') UI.unCalm(); });
-    UI.timerLabel();
+    SS.on('agenda', UI.tickClock); SS.on('state', UI.tickClock); SS.on('settings', p => { if (p === 'cloud' || /clock|agenda|env/.test(p || '')) UI.tickClock(); if (p === 'cloud' || p === 'slideSeconds') UI.timerLabel(); if (p === 'cloud' || /^(genres|shuffle|personalOn|weights\.(living|generative))/.test(p || '')) UI.genreLabel(); if (p === 'calm') UI.unCalm(); });
+    UI.timerLabel(); UI.genreLabel();
     UI.wake();
     UI.unCalm();
   };
