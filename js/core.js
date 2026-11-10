@@ -49,6 +49,7 @@
     genres: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
     shuffle: '<path d="M3 7h3.5c2 0 3.2 1 4.3 2.6l2.4 4.8C14.3 16 15.5 17 17.5 17H21M18 14l3 3-3 3M3 17h3.5c1.4 0 2.4-.5 3.2-1.4M13.3 8.4c.8-.9 1.8-1.4 3.2-1.4H21M18 4l3 3-3 3"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    weather: '<circle cx="8" cy="8" r="2.6"/><path d="M8 2.6v1.2M2.6 8h1.2M4.2 4.2l.9.9M11.8 4.2l-.9.9"/><path d="M8.5 20h8.6a3.6 3.6 0 0 0 .3-7.2 5 5 0 0 0-9.6 1.4A2.9 2.9 0 0 0 8.5 20z"/>',
   };
   U.icon = name => U.svg(U.icons[name] || '');
 
@@ -245,7 +246,7 @@
 
   /* ── Settings ── */
   const DEFAULTS = {
-    v: 6,
+    v: 7,
     slideSeconds: 120,          // how long each picture stays (seconds)
     genSeconds: 120,            // generative pieces never stay longer than this
     liveSeconds: 180,           // how long a living (animated) piece stays
@@ -260,13 +261,16 @@
     personalShare: 30,          // % of slides from your photos (when you have some)
     weights: {                  // 0 off · 1 low · 2 normal · 3 high  (generative: -1 never · 0 only if nothing else loads)
       met: 2, aic: 2, cleveland: 2, smk: 2, rijks: 1, vam: 1, harvard: 2,
-      wikimedia: 2, nasa: 1, spotlight: 2, bing: 2, generative: 1, living: 2, nasavideo: 1, commonsvideo: 1, archivefilm: 1, europeana: 1, classics: 2, posters: 2, sciart: 2, wellcome: 2,
+      wikimedia: 2, nasa: 1, spotlight: 2, bing: 2, generative: 1, living: 2, nasavideo: 1, commonsvideo: 1, archivefilm: 1, europeana: 1, classics: 2, posters: 2, sciart: 2, wellcome: 2, landmarks: 1,
     },
-    genres: { paintings: true, photography: true, posters: true, science: true, space: true, cartoons: true, video: true },   // living, generative and my photos use their own switches
+    genres: { paintings: true, photography: true, landmarks: true, posters: true, science: true, space: true, cartoons: true, video: true },   // living, generative and my photos use their own switches
     shuffle: false,             // one genre at a time, picked at random
     personalOn: true,
     harvardKey: '',
     europeanaKey: '',           // optional: free key from pro.europeana.eu for museum video
+    // Weather screen and weather effects. scope: city | state | country | world. place: null = follow your weather location.
+    // strength: 1 subtle · 2 normal · 3 strong. fav / pin: landmark ids.
+    wx: { screen: false, scope: 'city', place: null, fav: '', pin: '', fxLm: true, fxArt: true, strength: 2 },
     clock: true,
     clock24: false,
     tapView: 'art',             // a tap on the art leaves: 'art' (art only) | 'clock' (clock & date) | 'cycle' (clock & date, then art only)
@@ -296,7 +300,7 @@
   if (!stored.v || stored.v < 3) { if (stored.weights && stored.weights.generative === 0) stored.weights.generative = 1; stored.v = 3; }
   if (stored.v < 5) { stored.flight = Object.assign({}, stored.flight, { locMode: (stored.flight && stored.flight.locMode) || 'device' }); }
   if (stored.v < 4) { if (stored.flight && typeof stored.flight.strip === 'boolean') stored.flight.strip = stored.flight.strip ? 'tab' : 'off'; }
-  stored.v = Math.max(stored.v || 0, 6);
+  stored.v = Math.max(stored.v || 0, 7);
   SS.settings = merge(DEFAULTS, stored);
   // Flight strip: 'tab' (tucked behind a small tab) | 'always' | 'off'. Older devices may sync a boolean.
   SS.stripMode = () => { const f = SS.settings.flight, v = f.strip; return !f.enabled || f.mode === 'off' || v === false || v === 'off' ? 'off' : v === 'always' ? 'always' : 'tab'; };

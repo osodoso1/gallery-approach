@@ -26,7 +26,7 @@
 
   const SECTIONS = [
     ['slideshow', 'Slideshow'], ['fx', 'Transitions'], ['sources', 'Genres & sources'], ['photos', 'My photos'],
-    ['flights', 'Flights'], ['weather', 'Weather & air'], ['calendar', 'Calendar'], ['sync', 'Sync & devices'], ['display', 'Display'], ['about', 'About'],
+    ['flights', 'Flights'], ['weather', 'Weather & landmarks'], ['calendar', 'Calendar'], ['sync', 'Sync & devices'], ['display', 'Display'], ['about', 'About'],
   ];
 
   ST.open = function (section) {
@@ -40,6 +40,7 @@
   ST.close = function () { ST.isOpen = false; U.$('#sheet').hidden = true; U.$('#sheet').innerHTML = ''; revokeThumbs(); };
   SS.on('pool', () => { if (ST.isOpen && ST.section === 'sources') renderMain(); if (SS.ui.genres && SS.ui.genres.isOpen) SS.ui.genres.refresh(); });
   SS.on('photos', () => { if (ST.isOpen && ST.section === 'photos') renderMain(); });
+  SS.on('landmarks', () => { if (ST.isOpen && ST.section === 'weather' && !(document.activeElement && /INPUT|SELECT/.test(document.activeElement.tagName))) renderMain(); });
   SS.on('cloud', () => { if (ST.isOpen && (ST.section === 'sync' || ST.section === 'photos')) renderMain(); });
 
   let main;
@@ -232,8 +233,63 @@
       row('Under the clock', 'Collapsed shows a one-line summary you can tap to drop down', seg('env.show', [['off', 'Hide'], ['compact', 'Collapsed'], ['open', 'Expanded']])),
       row('Units', null, seg('env.units', [['F', '°F · mph'], ['C', '°C · km/h']], () => E.refresh())),
       row('Weather, UV & air quality', E.status.wx === 'ok' ? 'Loaded from Open-Meteo' : E.status.wx || 'Loading…', h('span', { class: 'badge ' + (E.status.wx === 'ok' ? 'ok' : 'err') }, E.status.wx === 'ok' ? 'ok' : 'n/a')),
-      h('div', { class: 'fx-group' }, 'Location'), E.locationControls(),
+      h('div', { class: 'fx-group' }, 'Location'), E.locationControls());
+    weatherScreen(m);
+    m.append(
       h('p', { class: 'note' }, 'The sneeze outlook is an estimate, not a pollen count. It combines the typical pollen season for the month with today\'s wind (stirs pollen up), humidity, rain (washes it out) and air quality (smoke, smog and dust irritate noses too). Weather and air quality come from ', link('https://open-meteo.com/', 'Open-Meteo'), ' (free, no key).'));
+  }
+
+  // Weather screen, landmarks and weather effects
+  function weatherScreen(m) {
+    const L = SS.landmarks, w = SS.settings.wx, on = SS.wxscreen.isOn(), wh = L.where;
+    const later = () => setTimeout(() => { if (ST.isOpen && ST.section === 'weather') renderMain(); }, 600);
+    // pick a place: any built-in city, or search anywhere
+    const sel = h('select', { 'aria-label': 'Pick a place' }, h('option', { value: '' }, 'Pick a city…'));
+    const byC = {};
+    L.places.forEach((p, i) => (byC[p.cc] || (byC[p.cc] = [])).push([p, i]));
+    Object.keys(byC).sort((a, b) => L.countryName(a).localeCompare(L.countryName(b))).forEach(cc => {
+      const og = h('optgroup', { label: L.countryName(cc) });
+      byC[cc].sort((a, b) => a[0].city.localeCompare(b[0].city)).forEach(([p, i]) => og.append(h('option', { value: String(i) }, p.city + (p.state && p.state !== p.city ? ', ' + p.state : ''))));
+      sel.append(og);
+    });
+    sel.addEventListener('change', () => { const p = L.places[+sel.value]; if (!p || sel.value === '') return; SS.setSetting('wx.place', { lat: p.lat, lon: p.lon, name: p.city }); SS.setSetting('wx.pin', ''); SS.show.nextP = null; later(); });
+    const results = h('div', { class: 'wx-results' });
+    const input = h('input', { type: 'text', placeholder: 'or search anywhere…', style: { width: '190px' } });
+    let tq = null;
+    input.addEventListener('input', () => {
+      clearTimeout(tq);
+      const q = input.value.trim(); if (q.length < 2) { results.innerHTML = ''; return; }
+      tq = setTimeout(async () => {
+        try {
+          const list = await SS.env2.search(q); results.innerHTML = '';
+          if (!list.length) results.append(h('div', { class: 'empty' }, 'No matches.'));
+          list.forEach(r => results.append(h('button', { class: 'wx-result', onclick: () => { SS.setSetting('wx.place', { lat: r.lat, lon: r.lon, name: r.short }); SS.setSetting('wx.pin', ''); SS.show.nextP = null; later(); } }, r.name)));
+        } catch (e) { results.innerHTML = ''; results.append(h('div', { class: 'empty' }, SS.env.cspBlocked ? 'Search is blocked in the claude.ai preview.' : 'Search isn\'t available right now.')); }
+      }, 350);
+    });
+    const fav = h('select', { 'aria-label': 'Favourite landmark' });
+    L.list.slice(0, 60).forEach(mk => { const o = h('option', { value: mk.id }, mk.name); if (L.fav() === mk) o.selected = true; fav.append(o); });
+    fav.addEventListener('change', () => SS.setSetting('wx.fav', fav.value));
+    const tryFx = h('div', { class: 'fx-try' });
+    Object.entries(L.SAMPLES).forEach(([id, sc]) => tryFx.append(h('button', { class: 'btn small', onclick: () => { ST.close(); SS.wxfx.demo(sc); U.toast(`${sc.label} · a 9-second preview`, 2600); } }, sc.label)));
+    const found = L.found().reduce((a, p) => a + p.marks.length, 0);
+    m.append(
+      h('div', { class: 'fx-group' }, 'Weather screen & landmarks'),
+      h('p', { class: 'lead' }, 'A second screen that puts the weather first: photos of the landmarks around you, each with the live weather at that exact spot drawn over it. Fog rolls across the Golden Gate Bridge when it\'s foggy there; rain, snow, storms, sun and nightfall show up the same way.'),
+      row('Weather screen', 'Also the 🕒 button → Screen, the weather button in the control bar on bigger screens, or press W.', h('button', { class: 'btn' + (on ? '' : ' amber'), onclick: () => { ST.close(); SS.wxscreen.toggle(); } }, on ? 'Back to the gallery' : 'Open the weather screen')),
+      row('Show landmarks from', `Now: ${L.scopeLabel()} · ${L.list.length} landmark${L.list.length === 1 ? '' : 's'} in play${L.widened ? ' (widened, because nothing is built in for that area yet)' : ''}. The app knows ${L.count()} in all.`, seg('wx.scope', [['city', 'My city'], ['state', 'My state'], ['country', 'My country'], ['world', 'The world']], () => { SS.show.nextP = null; later(); })),
+      row('Place', w.place ? `Chosen: ${w.place.name}` : `Following your weather location${wh ? ` (${[wh.city, wh.state, L.countryName(wh.cc)].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ')})` : ''}. Travel somewhere and the landmarks follow you.`,
+        h('div', { class: 'lm-pick' }, w.place ? h('button', { class: 'btn small', onclick: () => { SS.setSetting('wx.place', null); SS.setSetting('wx.pin', ''); SS.show.nextP = null; later(); } }, U.icon('pin'), 'Follow my location') : '', sel, input)),
+      results,
+      L.list.length > 1 ? row('Favourite', 'Comes round most often: about every third picture. "Stay here" on the weather screen shows only one landmark.', fav) : '',
+      row('Find more near me', `Somewhere the app doesn\'t know yet, it looks up the best-known places within about 6 miles on Wikipedia and adds them by itself. This button does it for where you are now.${found ? ` Added so far: ${found}.` : ''}`,
+        h('button', { class: 'btn small', onclick: async e => { e.target.disabled = true; const n = await L.discover(L.where, true); U.toast(n ? `Added ${n} place${n === 1 ? '' : 's'} near ${L.where.city || 'you'}` : SS.env.cspBlocked ? 'The claude.ai preview can\'t reach Wikipedia' : 'Nothing new found nearby'); L.resolve(true); later(); } }, 'Find landmarks'),
+        found ? h('button', { class: 'btn small ghost', onclick: () => { L.forget(); later(); } }, 'Forget added') : ''),
+      row('Weather effects on landmarks', 'Fog, rain, snow, lightning, cloud, sun glow and night, from the weather at the landmark itself.', toggle('wx.fxLm')),
+      row('Weather effects on the art', 'Your own weather drifts over the art and your photos too: fog, rain, snow and storms only, so the art keeps its colours on a clear day.', toggle('wx.fxArt')),
+      row('Effect strength', null, seg('wx.strength', [[1, 'Subtle'], [2, 'Normal'], [3, 'Strong']])),
+      row('Try an effect', 'Plays over whatever is on screen for 9 seconds.', tryFx),
+      h('p', { class: 'note' }, 'Landmark photos come from Wikimedia Commons (quality images first), each credited with its licence. Weather at each landmark is from Open-Meteo: model data for that spot, refreshed every 10 minutes, not a sensor on the bridge.'));
   }
 
   function calendar(m) {

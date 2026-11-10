@@ -9,6 +9,7 @@
   SS.radar.init(); SS.radar.autoCompass();   // the compass is on unless you switch it off
   SS.planner.init();
   SS.env2.init();
+  SS.wxfx.init(); SS.landmarks.init(); SS.wxscreen.init();   // weather effects, landmarks and the weather screen
   SS.flights.start();
   await SS.photos.refresh();
   SS.pool.warm();

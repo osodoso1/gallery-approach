@@ -23,6 +23,7 @@
     storm: '<path d="M7 15h10a4 4 0 0 0 0-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 15z"/><path d="M12 14l-2 4h3l-2 4"/>',
     chevron: '<path d="M6 9l6 6 6-6"/>',
   };
+  EN.WMO = WMO; EN.ICON = ICON;
   EN.uvCat = v => (v == null ? null : v < 3 ? ['Low', '#7ee0a1'] : v < 6 ? ['Moderate', '#f5d76e'] : v < 8 ? ['High', '#ffb547'] : v < 11 ? ['Very high', '#ff6b5e'] : ['Extreme', '#c77dff']);
   EN.aqiCat = v => (v == null ? null : v <= 50 ? ['Good', '#7ee0a1'] : v <= 100 ? ['Moderate', '#f5d76e'] : v <= 150 ? ['Unhealthy for sensitive groups', '#ffb547'] : v <= 200 ? ['Unhealthy', '#ff6b5e'] : v <= 300 ? ['Very unhealthy', '#c77dff'] : ['Hazardous', '#a0303a']);
   /* Sneeze outlook: how allergy-ish today is likely to feel. No pollen counts here, just the usual
@@ -307,7 +308,7 @@
     if (chips.length) host.append(h('div', { class: 'wx-chips', onclick: e => { e.stopPropagation(); SS.setSetting('env.show', open ? 'compact' : 'open'); } }, chips));
     if (open) {
       const dd = h('div', { class: 'wx-drop', onclick: e => e.stopPropagation() }, details(true),
-        h('div', { class: 'wx-loc-btns' }, h('button', { class: 'btn small ghost', onclick: () => SS.setSetting('env.show', 'compact') }, 'Collapse'), h('button', { class: 'btn small ghost', onclick: () => { SS.setSetting('env.show', 'off'); U.toast('Weather hidden. Turn it back on in the panel (Weather tab) or Settings.'); } }, 'Hide weather')));
+        h('div', { class: 'wx-loc-btns' }, h('button', { class: 'btn small', onclick: () => { SS.setSetting('env.show', 'compact'); SS.wxscreen.open(); } }, 'Weather screen'), h('button', { class: 'btn small ghost', onclick: () => SS.setSetting('env.show', 'compact') }, 'Collapse'), h('button', { class: 'btn small ghost', onclick: () => { SS.setSetting('env.show', 'off'); U.toast('Weather hidden. Turn it back on in the panel (Weather tab) or Settings.'); } }, 'Hide weather')));
       host.append(dd);
       dd.scrollTop = keepScroll;
       if (keepScroll) dd.style.animation = 'none';

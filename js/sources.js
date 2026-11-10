@@ -550,11 +550,18 @@
     async fetchBatch() { return SS.photos.nextBatch(10).map(SS.photos.toItem); },
   };
 
+  /* ── Landmarks: famous places near you, shown with the weather that's there right now (js/landmarks.js) ── */
+  def({
+    id: 'landmarks', name: 'Landmarks', sub: 'Famous places near you, or anywhere you pick, with their live weather · Wikimedia Commons', color: '#6fb8ff', group: 'landmarks', home: 'https://commons.wikimedia.org/wiki/Commons:Quality_images',
+    async fetchBatch() { return SS.landmarks ? SS.landmarks.batch() : []; },
+  });
+
   /* ── Genres: what kind of picture it is. Tick the ones you want on screen. ── */
   // living, generative and "my photos" use the switch they already had, so there's only ever one switch for each.
   const GENRES = (SS.genres = [
     { id: 'paintings', name: 'Paintings & museum art', sub: 'The Met, Art Institute of Chicago, Cleveland, SMK, Rijksmuseum, V&A', color: '#e5484d', srcs: ['met', 'aic', 'cleveland', 'smk', 'rijks', 'vam', 'harvard'] },
     { id: 'photography', name: 'Photography', sub: 'Wikimedia Commons featured pictures, Spotlight, Bing', color: '#3fb6c7', srcs: ['wikimedia', 'spotlight', 'bing'] },
+    { id: 'landmarks', name: 'Landmarks', sub: 'Famous places near you, with the weather there', color: '#6fb8ff', srcs: ['landmarks'] },
     { id: 'posters', name: 'Movie posters', sub: 'Classic film posters in the public domain', color: '#f2c14e', srcs: ['posters'] },
     { id: 'science', name: 'Science', sub: 'Micrographs, crystals, Haeckel, Wellcome Collection', color: '#5ad1b0', srcs: ['sciart', 'wellcome'] },
     { id: 'space', name: 'Space', sub: 'NASA photos and video', color: '#4f7cff', srcs: ['nasa', 'nasavideo'] },
@@ -570,7 +577,7 @@
   // Where each source's pictures come from (shown under the genre in the drop-down).
   const API = { met: 'collectionapi.metmuseum.org', aic: 'api.artic.edu', cleveland: 'openaccess-api.clevelandart.org', smk: 'api.smk.dk', rijks: 'data.rijksmuseum.nl', vam: 'api.vam.ac.uk', harvard: 'api.harvardartmuseums.org',
     wikimedia: 'commons.wikimedia.org', spotlight: 'Windows Spotlight, via your Pi', bing: 'Bing, via your Pi', posters: 'commons.wikimedia.org', sciart: 'commons.wikimedia.org', wellcome: 'api.wellcomecollection.org',
-    nasa: 'images-api.nasa.gov', nasavideo: 'images-api.nasa.gov', classics: 'archive.org · commons.wikimedia.org', archivefilm: 'archive.org', commonsvideo: 'commons.wikimedia.org', europeana: 'api.europeana.eu' };
+    landmarks: 'commons.wikimedia.org · open-meteo.com', nasa: 'images-api.nasa.gov', nasavideo: 'images-api.nasa.gov', classics: 'archive.org · commons.wikimedia.org', archivefilm: 'archive.org', commonsvideo: 'commons.wikimedia.org', europeana: 'api.europeana.eu' };
   for (const id in API) if (P[id]) P[id].api = API[id];
   const GBY = {}; GENRES.forEach(g => { GBY[g.id] = g; g.srcs.forEach(id => { if (P[id]) P[id].genre = g.id; }); });
   SS.genreById = GBY;
@@ -744,6 +751,8 @@
 
   pool.take = function () {
     const s = SS.settings;
+    // Weather screen: landmarks only (unless none can load, then the usual mix carries on underneath)
+    if (s.wx && s.wx.screen && SS.landmarks) { const lm = SS.landmarks.take(); if (lm !== undefined) return lm; }
     if (s.shuffle || pool.run) {
       const it = takeRun();
       if (it !== undefined) return it;
@@ -790,5 +799,5 @@
     }
     saveHistory();
   };
-  pool.markBad = item => { if (!item) return; pool.recent = pool.recent.filter(x => x.key !== item.key); if (item.key && item.src !== 'personal' && item.src !== 'generative') { pool.history.add(item.key); saveHistory(); } };
+  pool.markBad = item => { if (!item) return; if (item.lm && SS.landmarks) SS.landmarks.drop(item); pool.recent = pool.recent.filter(x => x.key !== item.key); if (item.key && item.src !== 'personal' && item.src !== 'generative') { pool.history.add(item.key); saveHistory(); } };
 })();

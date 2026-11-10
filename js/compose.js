@@ -98,7 +98,8 @@
     const { src, w: sw, h: sh } = downscale(img, iw, ih, st.pw, st.ph);
     const ir = iw / ih, sr = st.pw / st.ph, mismatch = Math.max(ir / sr, sr / ir);
     const fit = SS.settings.fit;
-    const mode = fit === 'fill' ? 'cover' : fit === 'fit' ? 'gallery' : (item.kind === 'art' ? 'gallery' : (mismatch < 1.38 ? 'cover' : 'gallery'));
+    // landmarks fill the screen (the weather is drawn over them), unless the shape is wildly off
+    const mode = fit === 'fill' ? 'cover' : fit === 'fit' ? 'gallery' : item.fill ? (mismatch < 3.6 ? 'cover' : 'gallery') : (item.kind === 'art' ? 'gallery' : (mismatch < 1.38 ? 'cover' : 'gallery'));
     if (mode === 'cover') {
       const s = Math.max(st.pw / iw, st.ph / ih), dw = iw * s, dh = ih * s;
       const fy = item.kind === 'personal' ? 0.38 : 0.5;          // keep faces in frame

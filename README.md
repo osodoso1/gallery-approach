@@ -69,7 +69,7 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 - **Genres (▦ in the control bar, or G)** is a drop-down with a checkbox for each kind of picture: Paintings & museum art, Photography, Movie posters, Science, Space, Cartoons & early film, Nature & museum video, Living art, Generative art and My photos. Ticked genres share the screen; unticked ones never show. Tap **▾** on a genre (it shows how many of its sources are on, like `4/7`) to drop down the specific sources and APIs behind it, each with its own checkbox and where it comes from (`api.artic.edu · 8 lined up · from 5,000 works`, `api.harvardartmuseums.org · needs a free API key`…). Unticking a source remembers its level for when you tick it again, and ticking a source in an unticked genre turns the genre back on. If a ticked genre can't show anything (its sources are off, or it needs a key or the Pi server), it says so. *Fine-tune sources* sets each one to Low, Normal or High.
 - **Shuffle** (in the same drop-down) plays one genre at a time, picked at random: a few movie posters, then some science, then paintings… Every ticked genre gets an equal turn, however many sources it has, and a small note says which genre is up. **Shuffle now** (or **X**) jumps to a different genre straight away, even when Shuffle is off.
 - **⏱ in the control bar** sets how often the picture changes: 30 sec up to 1 hr (default 2 min). Generative pieces stay at most 2 min.
-- **← →** previous / next picture · **space** pause · **I** about this picture · **K** clock · **H** art only / show all · **D** clock & date only · **G** genres · **X** shuffle now · **T** transitions · **P** photos · **C** calendar · **R** radar · **S** settings · **F** full screen
+- **← →** previous / next picture · **space** pause · **I** about this picture · **K** clock · **H** art only / show all · **D** clock & date only · **G** genres · **W** weather screen · **X** shuffle now · **T** transitions · **P** photos · **C** calendar · **R** radar · **S** settings · **F** full screen
 - **Tap a caption** (or ⓘ) for *About this picture*: the source, artist, date, medium, credit line, licence, which server the image file came from, and a link to the original.
 - **Weather** sits under the clock as a drop-down: tap to open UV, air quality, the sneeze outlook and more, or hide it. **Day | Week** at the top switches between today (with an hour-by-hour strip) and the next 7 days; tap any day for its hours, rain amount, wind and gusts, UV, air quality and sneeze outlook. It's also the **Weather** tab in the side panel. Location comes from your device ("Use my location"), a place you search for, or your flight spot.
 - **The flight tab** (bottom right, e.g. `✈ CX 1436 1:42`) brings up the flight strip; the ⌄ on the strip tucks it away again. Want the strip showing all the time, or not at all? ⚙ → Flights → *Flight strip*.
@@ -104,6 +104,7 @@ Add photos from your library under ⚙ → My photos. They're resized and kept o
 | NASA Image Library | Space & Earth | NASA media guidelines | — |
 | Movie posters (Wikimedia Commons) | Classic film posters, mostly 1910–1965 | Public domain (per file) | — |
 | Science pictures (Wikimedia Commons) | Micrographs, crystals, specimens, Haeckel and other classic plates | per image (PD / CC) | — |
+| Landmarks (Wikimedia Commons, Wikipedia nearby search) | Famous places near you, with their weather | per image (PD / CC) | — |
 | Wellcome Collection | Science and medicine images | CC BY / CC BY-NC / public domain | — |
 | Windows Spotlight | Lock-screen photography | © credited photographer | Pi/computer server |
 | Bing daily image | Daily photography | © credited photographer | Pi/computer server |
@@ -130,6 +131,20 @@ Google Arts & Culture has no public API, so it can't be included automatically. 
 - **Passengers:** aircraft don't broadcast this, so the app shows the typical seat range for the aircraft type.
 - The default spot is a point in Foster City, right under the 28L/28R approach. Set your exact spot in ⚙ → Flights ("Use my location" works over HTTPS or on the Pi itself).
 - If live data can't be reached, the strip says **SIMULATED** and shows made-up flights on the real 28L/28R approach path. It never passes these off as live.
+
+## Weather screen & landmarks
+
+A second screen that puts the weather first (🕒 → **Screen → Weather & landmarks**, the weather button in the control bar on bigger screens, the *Weather screen* button in the weather drop-down, or press **W**).
+
+- **What it shows:** full-screen photos of the landmarks around you, each with the live weather *at that landmark*: a big temperature, the conditions in plain words, feels-like, high and low, wind, humidity, visibility, cloud, the next eight hours, and the local time if it's somewhere else.
+- **The weather is drawn over the picture.** Fog banks drift across the Golden Gate Bridge when visibility there is low; rain and snow fall at an angle set by the wind; thunderstorms flash; clear days get a warm sun glow, overcast ones go grey, and night dims the scene with a moon and a few stars. Changes fade in.
+- **Where the landmarks come from:** a built-in list of 350 landmarks in 57 countries, grouped by city, state and country. In the Bay Area that's the Golden Gate Bridge, Coit Tower, Alcatraz, the Bay Bridge, the Painted Ladies and more; in Tokyo it's Tokyo Tower, Shibuya Crossing, Sensō-ji, the Skytree, with Mount Fuji a step out.
+- **City / State / Country / World** chooses how far out to look from where you are (your weather location). The first landmark of your nearest city is the favourite and comes round about every third picture; **★ Favourite** picks another, and **Stay here** shows only one.
+- **Somewhere new?** If the app has nothing built in near you, it asks Wikipedia for the best-known places within about 6 miles that have a picture, and adds them on this device by itself. *Find landmarks* in ⚙ → Weather & landmarks does the same on demand.
+- **Change place** lets you pick any built-in city or search anywhere, so you can watch the weather in Kyoto from Foster City.
+- **Effects on the art too:** in the ordinary gallery, landmark pictures (the *Landmarks* genre) get their own weather, and your local weather can drift over the art and your photos (fog, rain, snow and storms only, so paintings keep their colours on a clear day). Both are switches in ⚙ → Weather & landmarks, with Subtle / Normal / Strong and a 9-second preview of each effect.
+
+Photos are from Wikimedia Commons (quality images first), credited with their licence. Weather is Open-Meteo model data for the landmark's coordinates, refreshed every 10 minutes. It isn't a sensor on the bridge.
 
 ## Weather, UV, air quality, sneeze outlook
 

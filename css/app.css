@@ -508,6 +508,62 @@ body.clock-only #overlay, body.clock-only #overlay * { pointer-events: none !imp
 body.clock-only .scrim-bottom { opacity: 0; }
 body.clock-only #panelTab { transform: translate(100%, -50%); }
 
+/* ── Weather effects layer, and the Weather screen (landmarks with their live weather) ── */
+#wxfx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+/* fog whitens the picture, so the words get a soft dark backing of their own */
+#overlay::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 1.4s var(--ease); background: radial-gradient(130% 85% at 0% 100%, rgba(6,8,12,.62), rgba(6,8,12,0) 62%), radial-gradient(75% 46% at 100% 0%, rgba(6,8,12,.42), rgba(6,8,12,0) 70%); }
+body.wx-veil #overlay::before { opacity: .9; }
+body.wx-veil #wxScreen, body.wx-veil #caption, body.wx-veil #clock { text-shadow: 0 1px 3px rgba(0,0,0,.5), 0 0 28px rgba(0,0,0,.6); }
+body.wx-veil .ws-where, body.wx-veil .ws-sub, body.wx-veil .ws-cond small, body.wx-veil .ws-stats em, body.wx-veil .ws-credit, body.wx-veil .ws-hours div { color: rgba(244,241,234,.86); }
+body.wx-screen #overlay::before { opacity: 1; }
+body.wx-screen #caption, body.wx-screen #wx, body.wx-screen #clkNext { display: none !important; }
+body.wx-screen #hud .hud-wx { color: var(--amber); }
+#wxScreen { position: absolute; left: calc(var(--safe-l) + 3.4vw); right: calc(var(--safe-r) + 3.4vw); bottom: calc(var(--safe-b) + var(--strip-h) + 22px); display: flex; flex-direction: column; align-items: flex-start; pointer-events: none; text-shadow: 0 1px 20px rgba(0,0,0,.5); transition: opacity .6s var(--ease); }
+#wxScreen[hidden] { display: none; }
+.ws-main { max-width: min(700px, 100%); }
+.ws-where { display: inline-flex; align-items: center; gap: 7px; font: 650 clamp(10px, .85vw, 12px)/1.3 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.ws-where svg { width: 13px; height: 13px; flex: none; }
+.ws-where em { font-style: normal; font-weight: 450; letter-spacing: .02em; text-transform: none; color: var(--faint); }
+.ws-name { margin: 10px 0 4px; font-family: var(--serif); font-weight: 300; font-size: clamp(32px, 4.4vw, 74px); line-height: 1.02; letter-spacing: -.02em; font-variation-settings: 'opsz' 144, 'SOFT' 30; }
+.ws-sub { font: 500 clamp(12px, 1vw, 15px)/1.3 var(--sans); color: var(--muted); }
+.ws-now { display: flex; align-items: center; gap: clamp(10px, 1.4vw, 20px); margin-top: clamp(10px, 1.6vh, 20px); }
+.ws-temp { font-family: var(--serif); font-weight: 300; font-size: clamp(64px, 8.4vw, 150px); line-height: .88; letter-spacing: -.035em; font-variant-numeric: lining-nums; font-variation-settings: 'opsz' 144, 'SOFT' 30; }
+.ws-ic svg { display: block; width: clamp(32px, 3.4vw, 58px); height: clamp(32px, 3.4vw, 58px); stroke-width: 1.4; filter: drop-shadow(0 1px 10px rgba(0,0,0,.4)); }
+.ws-cond b { display: block; font: 600 clamp(16px, 1.55vw, 26px)/1.2 var(--sans); }
+.ws-cond b::first-letter { text-transform: uppercase; }
+.ws-cond small { display: block; margin-top: 4px; font: 450 clamp(12px, .95vw, 15px)/1.3 var(--sans); color: var(--muted); }
+.ws-stats { display: flex; flex-wrap: wrap; gap: 8px clamp(14px, 1.8vw, 28px); margin-top: clamp(12px, 1.8vh, 20px); font: 550 clamp(12.5px, 1vw, 15px)/1.2 var(--sans); }
+.ws-stats em { display: block; margin-bottom: 3px; font: 650 9.5px/1 var(--sans); font-style: normal; letter-spacing: .17em; text-transform: uppercase; color: var(--faint); }
+.ws-hours, .ws-credit, .ws-chips, .ws-ctl { transition: opacity .9s var(--ease), max-height .9s var(--ease), margin .9s var(--ease); max-height: 140px; }
+.ws-hours { display: flex; gap: 2px; margin-top: 14px; overflow: hidden; }
+.ws-hours div { width: clamp(42px, 3.6vw, 56px); display: flex; flex-direction: column; align-items: center; gap: 4px; font: 500 11px/1 var(--sans); color: var(--muted); }
+.ws-hours svg { width: 18px; height: 18px; color: var(--text); }
+.ws-hours b { font: 600 13px/1 var(--sans); color: var(--text); }
+.ws-hours i { min-height: 10px; font: 500 9.5px/1 var(--sans); font-style: normal; color: #9cc9ff; }
+.ws-wait { margin-top: 12px; max-width: 46ch; font: 450 13.5px/1.5 var(--sans); color: var(--muted); }
+.ws-credit { display: block; margin-top: 10px; padding: 4px 0; border: 0; background: none; color: var(--faint); font: 450 11px/1.3 var(--sans); text-align: left; text-shadow: inherit; cursor: pointer; pointer-events: auto; overflow: hidden; }
+.ws-credit:hover { color: var(--muted); }
+.ws-chips { display: flex; gap: 6px; max-width: 100%; margin-top: 12px; padding: 2px 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; pointer-events: auto; text-shadow: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.ws-chips::-webkit-scrollbar { display: none; }
+.ws-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--hair); background: rgba(12,14,18,.4); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: var(--text); font: 500 12px var(--sans); cursor: pointer; }
+.ws-chip:last-child { margin-right: 30px; }
+.ws-chip:hover { background: rgba(40,44,52,.55); }
+.ws-chip.on { background: var(--text); color: #111; border-color: transparent; }
+.ws-chip b { font-weight: 650; opacity: .7; }
+.ws-chip i { font-style: normal; font-size: 10px; color: var(--amber); }
+.ws-chip.on i { color: #a86a00; }
+.ws-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; overflow: hidden; pointer-events: auto; text-shadow: none; }
+.ws-ctl .seg, .ws-ctl .btn:not(.amber) { background: rgba(12,14,18,.42); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.ws-ctl .btn:not(.amber):hover { background: rgba(40,44,52,.6); }
+/* after the fade timer the weather stays; the buttons, the list of places and the hours go */
+body.calm.wx-screen .ws-hours, body.calm.wx-screen .ws-credit, body.calm.wx-screen .ws-chips, body.calm.wx-screen .ws-ctl { opacity: 0; max-height: 0; margin-top: 0; padding: 0; pointer-events: none; }
+body.clock-only #wxScreen { opacity: 0; visibility: hidden; }
+body.clock-only #wxScreen * { pointer-events: none !important; }
+.vp-gap { height: 14px; }
+.lm-pick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lm-pick select, .lm-pick input { height: 34px; max-width: 100%; }
+.fx-try { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+
 /* What's on screen (the clock button) */
 #viewPop { position: fixed; z-index: 21; top: calc(var(--safe-t) + 68px); left: 50%; transform: translateX(-50%); width: min(380px, calc(100vw - 20px)); padding: 14px; border-radius: 18px; background: var(--glass-strong); border: 1px solid var(--hair-2); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); box-shadow: 0 20px 60px rgba(0,0,0,.5); animation: rise .3s var(--ease); }
 .vp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
@@ -551,6 +607,10 @@ body.clock-only #panelTab { transform: translate(100%, -50%); }
   body.strip-tab:not(.no-strip) #flightCard { bottom: calc(var(--safe-b) + var(--strip-h) + 26px); }
   body.no-strip #flightCard { bottom: calc(var(--safe-b) + 54px); max-height: calc(100vh - var(--safe-t) - 80px); overflow-y: auto; }
   body.wx-open #clkNext { display: none; }
+  #wxScreen { left: calc(var(--safe-l) + 16px); right: calc(var(--safe-r) + 16px); bottom: calc(var(--safe-b) + var(--strip-h) + 14px); }
+  .ws-hours { width: 100%; } .ws-hours div { flex: 1; width: auto; }
+  .ws-ctl .btn.small, .ws-ctl .seg button { font-size: 11px; padding-left: 9px; padding-right: 9px; }
+  .ws-stats { gap: 8px 16px; }
   .rb-scope { padding: 12px; }
   .rb-close { top: 12px; left: 12px; } .rb-compass { top: 12px; right: 12px; }
   .rb-facing { margin: -6px 0 12px; }

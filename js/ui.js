@@ -87,7 +87,7 @@
         prev: () => SS.show.prev(), next: () => SS.show.advance(), play: () => SS.show.toggle(),
         fx: () => SS.settingsUI.open('fx'), photos: () => SS.settingsUI.open('photos'), panel: () => SS.planner.toggle(),
         radar: () => SS.radar.openBig(), settings: () => SS.settingsUI.open(), full: () => UI.fullscreen(),
-        info: () => UI.info.toggle(), timer: () => UI.timer.toggle(), clock: () => UI.view.toggle(), genres: () => UI.genres.toggle(),
+        info: () => UI.info.toggle(), timer: () => UI.timer.toggle(), clock: () => UI.view.toggle(), genres: () => UI.genres.toggle(), weather: () => SS.wxscreen.toggle(),
       }[b.dataset.act] || (() => {}))();
     });
     U.$('#panelTab').addEventListener('click', () => SS.planner.open());
@@ -202,7 +202,10 @@
     sw.addEventListener('change', () => { SS.setSetting('clock', sw.checked); UI.tickClock(); });
     const tap = h('div', { class: 'seg vp-seg' });
     [['art', 'Art only'], ['clock', 'Clock & date'], ['cycle', 'Both in turn']].forEach(([v, l]) => tap.append(h('button', { class: (s.tapView || 'art') === v ? 'on' : '', onclick: e => { e.stopPropagation(); SS.setSetting('tapView', v); view.open(); } }, l)));
+    const scr = h('div', { class: 'seg vp-seg' }), wxOn = SS.wxscreen.isOn();
+    [[false, 'Gallery'], [true, 'Weather & landmarks']].forEach(([v, l]) => scr.append(h('button', { class: wxOn === v ? 'on' : '', onclick: e => { e.stopPropagation(); view.close(); if (v !== wxOn) SS.wxscreen.toggle(); } }, l)));
     pop.append(
+      h('div', { class: 'tp-h' }, 'Screen'), scr, h('div', { class: 'vp-gap' }),
       h('div', { class: 'tp-h' }, 'On screen'),
       h('div', { class: 'vp-grid' },
         pick('all', 'Everything', '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M6 8h5M6 11h3M6 16h12"/></svg>', () => UI.showAll()),
@@ -338,7 +341,7 @@
   function initInput() {
     // Swipes work anywhere over the picture (the art, the caption, the clock), not on buttons or panels.
     // Left = next, right = back. The picture follows your finger; let go past the line, or flick, and it goes.
-    const NO_SWIPE = 'button, a, input, select, textarea, label, .seg, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #genrePop, #viewPop, #hud, #panelTab, #stripTab, #flightStrip, #wx, .clk-next, #banner, #toasts';
+    const NO_SWIPE = 'button, a, input, select, textarea, label, .seg, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #genrePop, #viewPop, #hud, #panelTab, #stripTab, #flightStrip, #wx, .clk-next, #banner, #toasts, .ws-chips, .ws-ctl';
     let g = null;
     addEventListener('pointerdown', e => {
       if (!e.isPrimary || UI.gameOpen || SS.settingsUI.isOpen || (SS.radar && SS.radar.bigOpen) || (e.pointerType === 'mouse' && e.button !== 0)) { g = null; return; }
@@ -394,6 +397,7 @@
       else if (k === 'k') UI.toggleClock();
       else if (k === 'h') UI.toggleArt();
       else if (k === 'g') UI.genres.toggle();
+      else if (k === 'w') SS.wxscreen.toggle();
       else if (k === 'd') (UI.isClockOnly() ? UI.showAll() : UI.clockOnly());
       else if (k === 'x') { const g = SS.pool.shuffleNow(); if (g) U.toast(h('span', { class: 'toast-shuf' }, U.icon('shuffle'), 'Shuffle · ' + g.name), 2600); }
     });
