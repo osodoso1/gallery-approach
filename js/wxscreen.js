@@ -39,10 +39,12 @@
   WS.applyFx = function () {
     const it = curItem(), w = W();
     if (!it) return;
+    if (it.globe) { if (it.lm) LM().weather(it.lm); FX().set(null); return; }   // a snow globe keeps its weather inside the glass
     if (it.lm) {
       const data = LM().wxNow(it.lm);
-      if (!data) LM().weather(it.lm);
-      FX().set(w.fxLm !== false && data ? LM().scene(data) : null);
+      LM().weather(it.lm);
+      const sc = w.fxLm !== false && data ? LM().scene(data) : null;
+      FX().set(sc && w.dayNight === false ? Object.assign({}, sc, { night: 0 }) : sc);
       return;
     }
     if (WS.isOn() && WS.sample) { FX().set(w.fxLm !== false ? WS.sample : null); return; }   // sample weather (nothing live can load)
@@ -53,17 +55,22 @@
   };
 
   /* ── The screen ── */
-  WS.open = function () {
+  WS.look = () => (WS.isOn() ? (W().look === 'globe' ? 'globe' : 'photo') : 'gallery');
+  // look: 'photo' (full-screen landmark photos) or 'globe' (the snow globe). Left out: whichever you used last.
+  WS.open = function (look) {
+    const was = WS.look();
+    if (look && W().look !== look) SS.setSetting('wx.look', look);
     if (!WS.isOn()) SS.setSetting('wx.screen', true);
-    B.classList.add('wx-screen');
+    B.classList.add('wx-screen'); B.classList.toggle('wx-globe', W().look === 'globe');
     LM().resolve();
     SS.show.nextP = null;
-    if (!(curItem() && curItem().lm)) go();
+    const it = curItem();
+    if (!(it && it.lm) || was !== WS.look() || !!it.globe !== (W().look === 'globe')) go();
     SS.ui.wakeUp(); render();
   };
   WS.close = function () {
     if (WS.isOn()) SS.setSetting('wx.screen', false);
-    B.classList.remove('wx-screen');
+    B.classList.remove('wx-screen', 'wx-globe');
     WS.sample = null; LM().jump = null;
     SS.show.nextP = null; go();
     SS.ui.caption.refresh(); SS.ui.wakeUp();
@@ -78,6 +85,7 @@
     return h('div', { class: 'ws-ctl' }, seg,
       lm ? h('button', { class: 'btn small' + (w.pin === lm.id ? ' amber' : ''), title: 'Keep showing only this landmark', onclick: e => { e.stopPropagation(); SS.setSetting('wx.pin', w.pin === lm.id ? '' : lm.id); SS.show.nextP = null; U.toast(W().pin ? `Staying at ${lm.name}` : 'Back to all the landmarks'); render(); } }, U.icon('pin'), w.pin === lm.id ? 'Staying here' : 'Stay here') : '',
       lm && LM().fav() !== lm ? h('button', { class: 'btn small ghost', title: 'Show this one most often', onclick: e => { e.stopPropagation(); SS.setSetting('wx.fav', lm.id); U.toast(`${lm.name} will come round most often`); render(); } }, '★ Favourite') : '',
+      h('button', { class: 'btn small ghost', title: 'Switch between full-screen photos and the snow globe', onclick: e => { e.stopPropagation(); WS.open(W().look === 'globe' ? 'photo' : 'globe'); render(); } }, W().look === 'globe' ? 'Photo look' : 'Snow globe'),
       h('button', { class: 'btn small ghost', onclick: e => { e.stopPropagation(); SS.settingsUI.open('weather'); } }, 'Change place'),
       h('button', { class: 'btn small ghost', onclick: e => { e.stopPropagation(); WS.close(); } }, 'Back to the gallery'));
   }
@@ -118,8 +126,10 @@
           w.hours.slice(0, 8).forEach(x => hrs.append(h('div', null, h('span', null, hourLbl(x.t)), U.svg(EN().ICON[iconFor(x.code, x.day)]), h('b', null, deg(x.temp)), h('i', null, x.pop >= 20 ? x.pop + '%' : ''))));
           main.append(hrs);
         }
-      } else main.append(h('div', { class: 'ws-wait' }, 'Getting the weather there…'));
-      main.append(h('button', { class: 'ws-credit', onclick: e => { e.stopPropagation(); SS.ui.info.open(it); } }, `Photo: ${[U.truncate(it.creator || '', 40), it.license, 'Wikimedia Commons'].filter(Boolean).join(' · ')}`, h('span', null, ' ⓘ')));
+      } else if (it.globe && WS.sample) main.append(h('div', { class: 'ws-now' }, h('div', { class: 'ws-cond' }, h('b', null, WS.sample.label), h('small', null, 'Sample sky'))),
+        h('div', { class: 'ws-wait' }, SS.env.cspBlocked ? 'This preview can\'t reach the weather service, so the globe shows each kind of sky in turn. On the website it follows the real weather at the bridge.' : 'Live weather isn\'t loading right now, so the globe is showing each kind of sky in turn.'));
+      else main.append(h('div', { class: 'ws-wait' }, 'Getting the weather there…'));
+      main.append(h('button', { class: 'ws-credit', onclick: e => { e.stopPropagation(); SS.ui.info.open(it); } }, it.model ? 'Bridge drawn in code by this app' : `Photo: ${[U.truncate(it.creator || '', 40), it.license, 'Wikimedia Commons'].filter(Boolean).join(' · ')}`, h('span', null, ' ⓘ')));
     } else if (WS.sample) {
       main.append(h('h1', { class: 'ws-name' }, WS.sample.label), h('div', { class: 'ws-sub' }, 'Sample weather'),
         h('div', { class: 'ws-wait' }, SS.env.cspBlocked ? 'This preview can\'t reach the weather service or the landmark photos, so it shows each effect in turn over the art. On the website or Pi version this screen fills with landmarks near you and their live weather.' : 'Landmark photos aren\'t loading right now, so here\'s each weather effect in turn. It will switch to live landmarks as soon as they load.'));
@@ -137,7 +147,8 @@
     U.$('#overlay').appendChild(host);
     SS.on('slide', ({ item }) => {
       if (WS.isOn()) {
-        if (item.lm) { WS.sample = null; SS.landmarks.weather(item.lm); }
+        if (item.lm && !(item.globe && (SS.env.cspBlocked || !SS.landmarks.list.length))) { WS.sample = null; SS.landmarks.weather(item.lm); }
+        else if (item.globe) { WS.sample = SS.landmarks.SAMPLES[SAMPLE_ORDER[WS.sampleN++ % SAMPLE_ORDER.length]]; }
         else WS.sample = SS.landmarks.SAMPLES[SAMPLE_ORDER[WS.sampleN++ % SAMPLE_ORDER.length]];
       } else WS.sample = null;
       WS.applyFx(); render();
@@ -147,9 +158,10 @@
     SS.on('wxfx-idle', () => WS.applyFx());
     SS.on('settings', p => {
       if (p === 'cloud') { const on = WS.isOn(); if (on !== B.classList.contains('wx-screen')) (on ? WS.open() : WS.close()); }
+      if (/^wx\.(look|models)/.test(p || '') && WS.isOn()) { B.classList.toggle('wx-globe', W().look === 'globe'); SS.show.nextP = null; go(); }
       if (p === 'cloud' || /^wx\.|^env\.(units|enabled)|^clock24/.test(p || '')) { WS.applyFx(); render(); }
     });
     setInterval(() => { WS.applyFx(); if (WS.isOn()) render(); }, 5 * 60e3);
-    if (WS.isOn()) { B.classList.add('wx-screen'); SS.landmarks.resolve(); render(); }
+    if (WS.isOn()) { B.classList.add('wx-screen'); B.classList.toggle('wx-globe', W().look === 'globe'); SS.landmarks.resolve(); render(); }
   };
 })();

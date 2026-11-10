@@ -269,8 +269,9 @@
     harvardKey: '',
     europeanaKey: '',           // optional: free key from pro.europeana.eu for museum video
     // Weather screen and weather effects. scope: city | state | country | world. place: null = follow your weather location.
+    // look: 'photo' (full-screen photos) | 'globe' (snow globe). dayNight: night and sunset lighting from the landmark's own clock.
     // strength: 1 subtle · 2 normal · 3 strong. fav / pin: landmark ids.
-    wx: { screen: false, scope: 'city', place: null, fav: '', pin: '', fxLm: true, fxArt: true, strength: 2 },
+    wx: { screen: false, look: 'photo', dayNight: true, models: true, scope: 'city', place: null, fav: '', pin: '', fxLm: true, fxArt: true, strength: 2 },
     clock: true,
     clock24: false,
     tapView: 'art',             // a tap on the art leaves: 'art' (art only) | 'clock' (clock & date) | 'cycle' (clock & date, then art only)

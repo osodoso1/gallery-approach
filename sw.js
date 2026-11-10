@@ -1,7 +1,7 @@
 /* Offline shell for Gallery Approach. Network first, so updates show up straight away. */
-const CACHE = 'gallery-approach-v6';
+const CACHE = 'gallery-approach-v7';
 const SHELL = ['./', 'index.html', 'css/app.css', 'manifest.webmanifest',
-  'js/core.js', 'js/gen.js', 'js/live.js', 'js/photos.js', 'js/sources.js', 'js/landmarks.js', 'js/wxfx.js', 'js/wxscreen.js', 'js/compose.js', 'js/fx.js', 'js/show.js', 'js/flights.js', 'js/radar.js', 'js/game.js', 'js/planner.js', 'js/env.js', 'js/settings.js', 'js/ui.js', 'js/cloud.js', 'js/main.js',
+  'js/core.js', 'js/gen.js', 'js/live.js', 'js/photos.js', 'js/sources.js', 'js/landmarks.js', 'js/wxfx.js', 'js/globe.js', 'js/wxscreen.js', 'js/compose.js', 'js/fx.js', 'js/show.js', 'js/flights.js', 'js/radar.js', 'js/game.js', 'js/planner.js', 'js/env.js', 'js/settings.js', 'js/ui.js', 'js/cloud.js', 'js/main.js',
   'assets/fonts/fraunces-latin-opsz-normal.woff2', 'assets/fonts/fraunces-latin-opsz-italic.woff2', 'assets/fonts/inter-latin-opsz-normal.woff2', 'assets/fonts/jetbrains-mono-latin-wght-normal.woff2',
   'assets/icons/icon-192.png', 'assets/icons/icon-512.png'];
 

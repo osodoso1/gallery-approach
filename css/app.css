@@ -557,6 +557,19 @@ body.wx-screen #hud .hud-wx { color: var(--amber); }
 .ws-ctl .btn:not(.amber):hover { background: rgba(40,44,52,.6); }
 /* after the fade timer the weather stays; the buttons, the list of places and the hours go */
 body.calm.wx-screen .ws-hours, body.calm.wx-screen .ws-credit, body.calm.wx-screen .ws-chips, body.calm.wx-screen .ws-ctl { opacity: 0; max-height: 0; margin-top: 0; padding: 0; pointer-events: none; }
+/* Snow globe look: black room, so no scrims; the words keep to the left of the globe (or below it on a phone) */
+body.wx-globe .scrim, body.wx-globe #overlay::before { opacity: 0; }
+@media (min-aspect-ratio: 21/20) {
+  body.wx-globe #wxScreen { right: auto; width: min(36vw, 560px); bottom: auto; top: 50%; transform: translateY(-46%); }
+  body.wx-globe .ws-chips { flex-wrap: wrap; -webkit-mask-image: none; mask-image: none; max-height: 68px; }
+  body.wx-globe .ws-chip:last-child { margin-right: 0; }
+}
+@media (max-aspect-ratio: 21/20) {
+  body.wx-globe .ws-hours, body.wx-globe .ws-credit { display: none; }
+  body.wx-globe .ws-name { font-size: clamp(28px, 8vw, 44px); margin-top: 6px; }
+  body.wx-globe .ws-temp { font-size: clamp(54px, 15vw, 84px); }
+  body.wx-globe .ws-stats { margin-top: 8px; }
+}
 body.clock-only #wxScreen { opacity: 0; visibility: hidden; }
 body.clock-only #wxScreen * { pointer-events: none !important; }
 .vp-gap { height: 14px; }

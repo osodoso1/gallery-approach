@@ -660,29 +660,44 @@ Bora Bora;-16.5004;-151.7415;"Bora Bora" lagoon
     return c;
   }
   const toItem = (lm, ph) => ({ key: `lm:${lm.id}:${ph.key}`, src: 'landmarks', kind: 'photo', fill: true, urls: ph.urls, title: lm.name, creator: ph.by, detail: LM.placeLine(lm), license: ph.lic, link: ph.link, lm });
+  // Snow globe look: the same landmark inside a glass dome. The Golden Gate Bridge is a model drawn in code (no photo needed).
+  const MODELS = { 'golden-gate-bridge-us': 'gg' };
+  const isGlobe = () => W().screen && W().look === 'globe';
+  const modelFor = lm => (W().models !== false && MODELS[lm.id]) || '';
+  const toGlobe = (lm, ph) => (ph ? Object.assign(toItem(lm, ph), { globe: true, kind: 'art' })
+    : { key: `lm:${lm.id}:model`, src: 'landmarks', kind: 'art', globe: true, model: modelFor(lm), title: lm.name, creator: '', detail: LM.placeLine(lm), license: 'Drawn in code by this app', link: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(lm.name), lm });
+  LM.sampleGlobe = () => toGlobe(LM.byId('golden-gate-bridge-us'), null);
   LM.drop = item => { const c = item && item.lm && LM.photos[item.lm.id]; if (c && c.list) c.list = c.list.filter(p => `lm:${item.lm.id}:${p.key}` !== item.key); };
 
   // The weather screen's next picture. null = still loading; undefined = can't (let the normal mix carry on).
   LM.take = function () {
-    if (!LM.ready) { LM.resolve(); return SS.env.cspBlocked ? undefined : null; }
-    if (!LM.list.length || SS.env.cspBlocked) return undefined;
+    const globe = isGlobe();
+    // nothing outside can load? the snow globe still works, with its drawn bridge
+    if (!LM.ready) { LM.resolve(); return SS.env.cspBlocked ? (globe ? LM.sampleGlobe() : undefined) : null; }
+    if (!LM.list.length || SS.env.cspBlocked) return globe ? LM.sampleGlobe() : undefined;
     const pin = W().pin && LM.list.find(m => m.id === W().pin);
     const rot = pin ? [pin] : rotation();
     const order = LM.jump ? [LM.jump].concat(rot.filter(m => m !== LM.jump)) : rot;
     for (let k = 0; k < order.length; k++) {
-      const lm = order[k], c = photos(lm);
+      const lm = order[k];
+      if (globe && modelFor(lm)) {
+        if (lm === LM.jump) LM.jump = null; else if (!pin) LM.pos += rot.indexOf(lm) + 1;
+        order.slice(k + 1, k + 3).forEach(n => { if (!modelFor(n)) photos(n); LM.weather(n); });
+        return toGlobe(lm, null);
+      }
+      const c = photos(lm);
       if (c.list && c.list.length) {
         if (lm === LM.jump) LM.jump = null;
         else if (!pin) LM.pos += rot.indexOf(lm) + 1;
         const ph = c.list[c.i++ % c.list.length];
         order.slice(k + 1, k + 3).forEach(n => { photos(n); LM.weather(n); });
-        return toItem(lm, ph);
+        return globe ? toGlobe(lm, ph) : toItem(lm, ph);
       }
       if (k === 0 && lm === LM.jump && c.loading) return null;   // you asked for this one: wait for it
     }
     if (pin && !photos(pin).loading) { const r = rotation(); r.forEach(photos); }
     const tried = order.map(photos);
-    return tried.every(c => !c.loading && c.failedAt) ? undefined : null;
+    return tried.every(c => !c.loading && c.failedAt) ? (globe ? LM.sampleGlobe() : undefined) : null;
   };
   // For the ordinary slideshow ("Landmarks" as a genre): a few pictures from the places in play.
   LM.batch = async function () {

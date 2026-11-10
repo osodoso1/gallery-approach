@@ -63,10 +63,13 @@
   };
   // Try an effect for a few seconds (Settings → Weather).
   FX.demo = function (scene, ms = 9000) {
-    FX.demoUntil = 0; FX.set(scene, { demo: true }); FX.demoUntil = Date.now() + ms;
+    FX.demoUntil = 0; FX.demoScene = scene;
+    const it = SS.show.cur && SS.show.cur.item;
+    FX.set(it && it.globe ? null : scene, { demo: true }); FX.demoUntil = Date.now() + ms;   // a snow globe shows the preview inside its glass
     clearTimeout(FX.demoT);
     FX.demoT = setTimeout(() => { FX.demoUntil = 0; const p = FX.pending; FX.pending = null; if (p) FX.set(p[0], p[1]); else SS.emit('wxfx-idle'); }, ms);
   };
+  FX.sprites = () => ({ puffs, dark });
   const live = o => KEYS.some(key => o[key] > 0.004);
   function kick() { if (!raf && cv && (live(FX.cur) || live(FX.target))) { last = 0; raf = requestAnimationFrame(frame); } }
 
@@ -74,7 +77,7 @@
     if (alpha <= 0.004) return;
     const tw = W * scale, th = H * h, off = (((t * speed * k) % tw) + tw) % tw;
     g.globalAlpha = Math.min(1, alpha);
-    for (let x = -off; x < W; x += tw) g.drawImage(img, x, y * H - th / 2, tw + 1, th);
+    for (let x = -off; x < W; x += tw) g.drawImage(img, 2, 0, img.width - 4, img.height, x, y * H - th / 2, tw + 0.6, th);
     g.globalAlpha = 1;
   }
 

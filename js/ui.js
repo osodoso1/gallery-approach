@@ -202,8 +202,8 @@
     sw.addEventListener('change', () => { SS.setSetting('clock', sw.checked); UI.tickClock(); });
     const tap = h('div', { class: 'seg vp-seg' });
     [['art', 'Art only'], ['clock', 'Clock & date'], ['cycle', 'Both in turn']].forEach(([v, l]) => tap.append(h('button', { class: (s.tapView || 'art') === v ? 'on' : '', onclick: e => { e.stopPropagation(); SS.setSetting('tapView', v); view.open(); } }, l)));
-    const scr = h('div', { class: 'seg vp-seg' }), wxOn = SS.wxscreen.isOn();
-    [[false, 'Gallery'], [true, 'Weather & landmarks']].forEach(([v, l]) => scr.append(h('button', { class: wxOn === v ? 'on' : '', onclick: e => { e.stopPropagation(); view.close(); if (v !== wxOn) SS.wxscreen.toggle(); } }, l)));
+    const scr = h('div', { class: 'seg vp-seg' }), look = SS.wxscreen.look();
+    [['gallery', 'Gallery'], ['photo', 'Weather'], ['globe', 'Snow globe']].forEach(([v, l]) => scr.append(h('button', { class: look === v ? 'on' : '', onclick: e => { e.stopPropagation(); view.close(); if (v === look) return; v === 'gallery' ? SS.wxscreen.close() : SS.wxscreen.open(v); } }, l)));
     pop.append(
       h('div', { class: 'tp-h' }, 'Screen'), scr, h('div', { class: 'vp-gap' }),
       h('div', { class: 'tp-h' }, 'On screen'),
@@ -398,6 +398,7 @@
       else if (k === 'h') UI.toggleArt();
       else if (k === 'g') UI.genres.toggle();
       else if (k === 'w') SS.wxscreen.toggle();
+      else if (k === 'o') (SS.wxscreen.look() === 'globe' ? SS.wxscreen.close() : SS.wxscreen.open('globe'));
       else if (k === 'd') (UI.isClockOnly() ? UI.showAll() : UI.clockOnly());
       else if (k === 'x') { const g = SS.pool.shuffleNow(); if (g) U.toast(h('span', { class: 'toast-shuf' }, U.icon('shuffle'), 'Shuffle · ' + g.name), 2600); }
     });
