@@ -22,7 +22,7 @@
     if (!uid) { CL.status = 'signed out'; SS.emit('cloud'); return; }
     CL.db = db; CL.uid = uid;
     try { CL.assets = await window.claude.use('assets'); } catch (e) { CL.assets = null; }
-    CL.stateRef = db.doc(`data/users/${uid}/state`);
+    CL.stateRef = db.doc(`data/users/${uid}/state${SS.theme.id ? '-' + SS.theme.id : ''}`);
     CL.on = true; CL.status = 'syncing'; SS.emit('cloud');
     const t = setTimeout(() => { if (CL.status === 'syncing') { CL.status = 'unreachable'; SS.emit('cloud'); } }, 10000);
     CL.stateRef.onSnapshot(snap => {

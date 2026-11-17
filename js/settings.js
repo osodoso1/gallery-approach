@@ -43,11 +43,14 @@
   SS.on('landmarks', () => { if (ST.isOpen && ST.section === 'weather' && !(document.activeElement && /INPUT|SELECT/.test(document.activeElement.tagName))) renderMain(); });
   SS.on('cloud', () => { if (ST.isOpen && (ST.section === 'sync' || ST.section === 'photos')) renderMain(); });
 
+  // A themed edition can add a section: ST.addSection(id, name, fn(m), afterId). ST.ui has the row builders.
+  const EXTRA = {};
+  ST.addSection = (id, name, fn, after) => { EXTRA[id] = fn; const i = SECTIONS.findIndex(s => s[0] === after); SECTIONS.splice(i < 0 ? 0 : i + 1, 0, [id, name]); };
   let main;
   function render() {
     const host = U.$('#sheet');
     host.innerHTML = '';
-    const nav = h('div', { class: 'sh-nav' }, h('div', { class: 'sh-brand' }, 'Gallery ', h('em', null, 'Approach')),
+    const nav = h('div', { class: 'sh-nav' }, h('div', { class: 'sh-brand' }, (SS.theme.brand || ['Gallery', 'Approach'])[0] + ' ', h('em', null, (SS.theme.brand || ['Gallery', 'Approach'])[1])),
       SECTIONS.map(([id, name]) => h('button', { class: ST.section === id ? 'on' : '', onclick: () => { ST.section = id; render(); } }, name)));
     main = h('div', { class: 'sh-main' });
     host.append(h('div', { class: 'sh-win', role: 'dialog', 'aria-label': 'Settings' }, nav, main));
@@ -58,9 +61,11 @@
     const top = main.scrollTop;
     main.innerHTML = '';
     main.append(h('button', { class: 'icon-btn sh-close', 'aria-label': 'Close settings', onclick: ST.close }, U.icon('x')));
-    ({ slideshow, fx, sources, photos, flights, weather, calendar, sync, display, about }[ST.section] || slideshow)(main);
+    (EXTRA[ST.section] || { slideshow, fx, sources, photos, flights, weather, calendar, sync, display, about }[ST.section] || slideshow)(main);
     main.scrollTop = top;
   }
+
+  ST.ui = { row: (...a) => row(...a), seg: (...a) => seg(...a), toggle: (...a) => toggle(...a), link, render: () => renderMain() };
 
   function slideshow(m) {
     m.append(h('h2', null, 'Slideshow'), h('p', { class: 'lead' }, 'Art is the main event. Everything else stays small and translucent.'),

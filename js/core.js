@@ -3,6 +3,9 @@
   'use strict';
   const SS = (window.SS = window.SS || {});
   const U = (SS.u = {});
+  // A themed edition sets window.SS_THEME before this file: its own storage prefix,
+  // default settings, a path back to the shared files ('../') and its own add-ons.
+  const THEME = (SS.theme = window.SS_THEME || {});
 
   /* ── DOM ── */
   U.$ = (s, r = document) => r.querySelector(s);
@@ -97,8 +100,8 @@
 
   /* ── Storage ── */
   U.store = {
-    get(k, d) { try { const v = localStorage.getItem('ga:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem('ga:' + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+    get(k, d) { try { const v = localStorage.getItem((THEME.store || 'ga:') + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem((THEME.store || 'ga:') + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
   };
 
   U.idb = (() => {
@@ -159,7 +162,7 @@
   SS.server.detect = async () => {
     SS.server.available = false; SS.server.features = {}; SS.server.info = null; SS.server.base = '';
     const custom = (SS.settings.serverUrl || '').trim();
-    const bases = custom ? [custom] : (/^https?:$/.test(location.protocol) ? [''] : []);
+    const bases = custom ? [custom] : (/^https?:$/.test(location.protocol) ? [THEME.root || ''] : []);
     for (const base of bases) {
       try {
         const r = await U.fetchWithTimeout((base ? base.replace(/\/+$/, '') + '/' : '') + 'api/health', { cache: 'no-store' }, 3500);
@@ -242,6 +245,7 @@
     const el = U.h('div', { class: 'toast' }, msg);
     host.append(el);
     setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 450); }, ms);
+    return el;
   };
 
   /* ── Settings ── */
@@ -294,7 +298,8 @@
     for (const k in over) out[k] = isObj(base[k]) && isObj(over[k]) ? merge(base[k], over[k]) : over[k];
     return out;
   }
-  SS.DEFAULTS = DEFAULTS;
+  const DEF = THEME.defaults ? merge(DEFAULTS, THEME.defaults) : DEFAULTS;   // a themed edition starts from its own defaults
+  SS.DEFAULTS = DEF;
   SS.merge = merge;
   const stored = U.store.get('settings', {});
   if (!stored.v || stored.v < 2) { if (stored.slideSeconds === 20) stored.slideSeconds = 120; }
@@ -302,7 +307,7 @@
   if (stored.v < 5) { stored.flight = Object.assign({}, stored.flight, { locMode: (stored.flight && stored.flight.locMode) || 'device' }); }
   if (stored.v < 4) { if (stored.flight && typeof stored.flight.strip === 'boolean') stored.flight.strip = stored.flight.strip ? 'tab' : 'off'; }
   stored.v = Math.max(stored.v || 0, 7);
-  SS.settings = merge(DEFAULTS, stored);
+  SS.settings = merge(DEF, stored);
   // Flight strip: 'tab' (tucked behind a small tab) | 'always' | 'off'. Older devices may sync a boolean.
   SS.stripMode = () => { const f = SS.settings.flight, v = f.strip; return !f.enabled || f.mode === 'off' || v === false || v === 'off' ? 'off' : v === 'always' ? 'always' : 'tab'; };
   SS.saveSettings = U.debounce(() => {

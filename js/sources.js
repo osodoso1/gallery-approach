@@ -581,6 +581,12 @@
   for (const id in API) if (P[id]) P[id].api = API[id];
   const GBY = {}; GENRES.forEach(g => { GBY[g.id] = g; g.srcs.forEach(id => { if (P[id]) P[id].genre = g.id; }); });
   SS.genreById = GBY;
+  // For a themed edition: add sources and genres of its own (a genre goes first in the list unless `after` names one).
+  SS.addSource = p => { def(p); if (p.api) P[p.id].api = p.api; };
+  SS.addGenre = (g, after) => {
+    const i = after ? GENRES.findIndex(x => x.id === after) + 1 : 0;
+    GENRES.splice(Math.max(0, i), 0, g); GBY[g.id] = g; g.srcs.forEach(id => { if (P[id]) P[id].genre = g.id; });
+  };
 
   /* ── Mixer ─────────────────────────────────────────── */
   const pool = (SS.pool = { reach: {}, queues: {}, fetching: {}, fails: {}, cooldown: {}, status: {}, queuedKeys: new Set(), history: new Set(U.store.get('history', [])), recent: U.store.get('recentArt', []) });
@@ -751,7 +757,9 @@
 
   pool.take = function () {
     const s = SS.settings;
-    // Weather screen: landmarks only (unless none can load, then the usual mix carries on underneath)
+    // A themed edition's own screen comes first, then the weather screen: landmarks only
+    // (unless none can load, then the usual mix carries on underneath)
+    if (SS.screenTake) { const it = SS.screenTake(); if (it !== undefined) return it; }
     if (s.wx && s.wx.screen && SS.landmarks) { const lm = SS.landmarks.take(); if (lm !== undefined) return lm; }
     if (s.shuffle || pool.run) {
       const it = takeRun();
@@ -791,7 +799,7 @@
     return null;
   };
   pool.markShown = item => {
-    if (!item || !item.key || item.src === 'personal' || item.src === 'generative' || item.src === 'living') return;
+    if (!item || !item.key || item.ephemeral || item.src === 'personal' || item.src === 'generative' || item.src === 'living') return;
     pool.history.add(item.key);
     if (!item.rerun && item.urls) {
       const { key, src, kind, urls, title, creator, date, detail, credit, license, link } = item;

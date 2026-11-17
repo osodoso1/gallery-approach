@@ -39,6 +39,7 @@
   WS.applyFx = function () {
     const it = curItem(), w = W();
     if (!it) return;
+    if (typeof it.scene === 'function') { FX().set(it.scene()); return; }      // a piece that knows its own weather
     if (it.globe) { if (it.lm) LM().weather(it.lm); FX().set(null); return; }   // a snow globe keeps its weather inside the glass
     if (it.lm) {
       const data = LM().wxNow(it.lm);
@@ -61,6 +62,7 @@
   // look: 'photo' (full-screen landmark photos) or 'globe' (the snow globe). Left out: whichever you used last.
   WS.open = function (look) {
     const was = WS.look();
+    (SS.ui.screens || []).forEach(x => { if (x.isOn()) x.close(true); });   // only one screen at a time
     if (look && W().look !== look) SS.setSetting('wx.look', look);
     if (!WS.isOn()) SS.setSetting('wx.screen', true);
     B.classList.add('wx-screen'); B.classList.toggle('wx-globe', W().look === 'globe');

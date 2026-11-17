@@ -130,6 +130,8 @@
   U.$('#caption').addEventListener('keydown', e => { if (e.key === 'Enter') UI.info.open(capItem); });
 
   /* ── About this picture: where it came from, in full ── */
+  // A themed edition can add buttons to the info card: UI.actions.push(item => [{ label, fn, ghost }])
+  UI.actions = [];
   const info = (UI.info = { isOpen: false });
   const hostName = u => { try { return new URL(u, location.href).hostname; } catch (e) { return ''; } };
   info.open = function (item) {
@@ -151,12 +153,15 @@
         (() => {   // the story behind it: a landmark's from Wikipedia, a creature's from its field guide entry
           const lore = item.lore || (item.lm && SS.landmarks && SS.landmarks.lore(item.lm));
           if (!lore || !lore.text) return '';
-          return h('div', { class: 'ic-lore' }, h('p', null, lore.text), lore.url ? h('small', null, link(lore.url, lore.credit || 'From Wikipedia ↗'), lore.credit ? '' : ' · CC BY-SA 4.0') : lore.credit ? h('small', null, lore.credit) : '');
+          // paragraphs split on blank lines; web addresses become links
+          const para = t => { const p = h('p'); String(t).split(/(https?:\/\/[^\s)]+)/).forEach((x, i) => p.append(i % 2 ? link(x, x.replace(/^https?:\/\/(www\.)?/, '')) : x)); return p; };
+          return h('div', { class: 'ic-lore' }, ...String(lore.text).split(/\n\s*\n/).map(para), lore.url ? h('small', null, link(lore.url, lore.credit || 'From Wikipedia ↗'), lore.credit ? '' : ' · CC BY-SA 4.0') : lore.credit ? h('small', null, lore.credit) : '');
         })(),
         gen ? h('p', { class: 'ic-note' }, `Generative art: this app drew it itself, with code, right on this screen. It isn't a photo of anything and it isn't AI-made. It stays at most ${Math.round((SS.settings.genSeconds || 120) / 60)} min.`) : '',
         gen ? h('div', { style: { margin: '0 0 10px' } }, h('button', { class: 'btn small', onclick: e => { e.stopPropagation(); SS.setSetting('weights.generative', -1); info.close(); SS.pool.genChanged(); U.toast('Generative art is off. Turn it back on in Settings → Slideshow.'); } }, 'Don\'t show generative art')) : '',
         item.kind === 'motion' ? h('p', { class: 'ic-note' }, 'A video, playing muted on a loop. It stays up to 2 minutes.') : '',
         living ? h('p', { class: 'ic-note' }, 'Living art: an animation this app draws live, right now, so every run plays out differently. The idea and its creator are credited below.') : '',
+        (() => { const acts = [].concat(...UI.actions.map(f => f(item) || [])); return acts.length ? h('div', { class: 'ic-acts' }, ...acts.map(a => h('button', { class: 'btn small' + (a.ghost ? ' ghost' : ''), onclick: e => { e.stopPropagation(); a.fn(e); } }, a.label))) : ''; })(),
         row('Source', p.name || item.src),
         row('Genre', SS.genreById[SS.pool.genreOfItem(item)] ? SS.genreById[SS.pool.genreOfItem(item)].name : ''),
         !mine && !gen ? row('By', U.text(item.creator)) : '',
@@ -199,6 +204,7 @@
 
   /* ── What's on screen: everything, just the clock and date, or just the art (the 🕒 button) ── */
   const view = (UI.view = { isOpen: false });
+  UI.screens = [];   // { id, label, first, isOn(), open(), close(quiet) } — added by a themed edition
   view.open = function () {
     const pop = U.$('#viewPop'); pop.innerHTML = '';
     const s = SS.settings, cur = UI.isArtOnly() ? 'art' : UI.isClockOnly() ? 'clock' : 'all';
@@ -207,8 +213,15 @@
     sw.addEventListener('change', () => { SS.setSetting('clock', sw.checked); UI.tickClock(); });
     const tap = h('div', { class: 'seg vp-seg' });
     [['art', 'Art only'], ['clock', 'Clock & date'], ['cycle', 'Both in turn']].forEach(([v, l]) => tap.append(h('button', { class: (s.tapView || 'art') === v ? 'on' : '', onclick: e => { e.stopPropagation(); SS.setSetting('tapView', v); view.open(); } }, l)));
-    const scr = h('div', { class: 'seg vp-seg' }), look = SS.wxscreen.look();
-    [['gallery', 'Gallery'], ['photo', 'Weather'], ['globe', 'Snow globe']].forEach(([v, l]) => scr.append(h('button', { class: look === v ? 'on' : '', onclick: e => { e.stopPropagation(); view.close(); if (v === look) return; v === 'gallery' ? SS.wxscreen.close() : SS.wxscreen.open(v); } }, l)));
+    // Screens: the gallery, the weather and snow-globe screens, plus any a themed edition adds (UI.screens)
+    const extra = UI.screens.find(x => x.isOn()), look = extra ? extra.id : SS.wxscreen.look();
+    const scr = h('div', { class: 'seg vp-seg' });
+    [['gallery', 'Gallery'], ...UI.screens.filter(x => x.first).map(x => [x.id, x.label]), ['photo', 'Weather'], ['globe', 'Snow globe'], ...UI.screens.filter(x => !x.first).map(x => [x.id, x.label])].forEach(([v, l]) => scr.append(h('button', { class: look === v ? 'on' : '', onclick: e => {
+      e.stopPropagation(); view.close(); if (v === look) return;
+      const x = UI.screens.find(y => y.id === v);
+      UI.screens.forEach(y => { if (y !== x && y.isOn()) y.close(true); });
+      if (x) { if (SS.wxscreen.isOn()) SS.wxscreen.close(); x.open(); } else v === 'gallery' ? SS.wxscreen.close() : SS.wxscreen.open(v);
+    } }, l)));
     pop.append(
       h('div', { class: 'tp-h' }, 'Screen'), scr, h('div', { class: 'vp-gap' }),
       h('div', { class: 'tp-h' }, 'On screen'),
@@ -346,7 +359,7 @@
   function initInput() {
     // Swipes work anywhere over the picture (the art, the caption, the clock), not on buttons or panels.
     // Left = next, right = back. The picture follows your finger; let go past the line, or flick, and it goes.
-    const NO_SWIPE = 'button, a, input, select, textarea, label, .seg, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #genrePop, #viewPop, #hud, #panelTab, #stripTab, #flightStrip, #wx, .clk-next, #banner, #toasts, .ws-chips, .ws-ctl';
+    const NO_SWIPE = 'button, a, input, select, textarea, label, .seg, #sheet, #panel, #radarBig, #game, #flightCard, #infoCard, #timerPop, #genrePop, #viewPop, #hud, #panelTab, #stripTab, #flightStrip, #wx, .clk-next, #banner, #toasts, .ws-chips, .ws-ctl, .no-swipe';   // .no-swipe: a themed edition's own panels
     let g = null;
     addEventListener('pointerdown', e => {
       if (!e.isPrimary || UI.gameOpen || SS.settingsUI.isOpen || (SS.radar && SS.radar.bigOpen) || (e.pointerType === 'mouse' && e.button !== 0)) { g = null; return; }

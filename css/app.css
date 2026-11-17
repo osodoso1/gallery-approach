@@ -560,6 +560,7 @@ body.calm.wx-screen .ws-hours, body.calm.wx-screen .ws-credit, body.calm.wx-scre
 .ws-lore { max-width: 54ch; margin: 10px 0 0; font: 450 clamp(12.5px, .95vw, 14.5px)/1.5 var(--sans); color: rgba(244,241,234,.8); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; pointer-events: auto; }
 .ws-more { padding: 0; border: 0; background: none; color: var(--amber); font: 600 inherit; font-size: inherit; cursor: pointer; text-shadow: inherit; }
 body.calm.wx-screen .ws-lore { -webkit-line-clamp: 2; }
+.ic-acts { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
 .ic-lore { margin: 4px 0 12px; }
 .ic-lore p { margin: 0 0 6px; font: 450 13px/1.55 var(--sans); color: var(--text); }
 .ic-lore small { font-size: 11px; color: var(--faint); }

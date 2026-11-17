@@ -146,6 +146,7 @@
   S.dwell = () => {
     const sec = SS.settings.slideSeconds;
     const it = S.cur && S.cur.item;
+    if (it && it.dwell) return it.dwell * 1000;   // a piece that knows how long it should stay (e.g. a short GIF loop)
     if (it && it.src === 'living') return (SS.settings.liveSeconds || 180) * 1000;
     if (it && it.kind === 'motion') return Math.min(SS.settings.liveSeconds || 180, 120) * 1000;   // videos: up to 2 minutes
     return (it && it.src === 'generative' ? Math.min(sec, SS.settings.genSeconds || 120) : sec) * 1000;

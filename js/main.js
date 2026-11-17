@@ -10,6 +10,7 @@
   SS.planner.init();
   SS.env2.init();
   SS.wxfx.init(); SS.landmarks.init(); SS.wxscreen.init();   // weather effects, landmarks and the weather screen
+  if (SS.theme.init) await SS.theme.init();                   // a themed edition's own add-ons
   SS.flights.start();
   await SS.photos.refresh();
   SS.pool.warm();
@@ -17,6 +18,6 @@
   SS.cloud.init(); // claude.ai page: sync through your account
   setInterval(() => SS.photos.refresh(), 10 * 60e3);
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
-    try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) { /* sandboxed */ }
+    try { navigator.serviceWorker.register(SS.theme.sw || 'sw.js').catch(() => {}); } catch (e) { /* sandboxed */ }
   }
 })();

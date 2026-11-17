@@ -823,4 +823,7 @@
     return api;
   };
   L.pieces = Object.keys(PIECES);
+  // A themed edition can add pieces of its own (same shape: make(seed), create(canvas, W, H, k, spec), credit).
+  L.register = (id, piece) => { PIECES[id] = piece; };
+  L.piece = id => PIECES[id];
 })();
