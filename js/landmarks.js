@@ -619,55 +619,89 @@ Bora Bora;-16.5004;-151.7415;"Bora Bora" lagoon
   const JUNK = /\b(map|plan|logo|diagram|drawing|engraving|lithograph|stamp|coin|scale model|plaque|sign\b|poster|ticket|postcard|interior|inside|detail|close-?up|construction|aerial view of the construction|flag|coat of arms|seal|icon|chart|graph|screenshot|panorama 360)\b/i;
   const store = U.store.get('lmPhotos', {});
   async function search(q, w) {
-    const d = await U.fetchJSON(`${COMMONS}&generator=search&gsrnamespace=6&gsrlimit=30&gsrsearch=${encodeURIComponent(q)}&prop=imageinfo&iiprop=url%7Csize%7Cmime%7Cextmetadata&iiurlwidth=${w}&iiextmetadatafilter=Artist%7CLicenseShortName`, { timeout: 14000 });
+    const d = await U.fetchJSON(`${COMMONS}&generator=search&gsrnamespace=6&gsrlimit=30&gsrsearch=${encodeURIComponent(q)}&prop=imageinfo&iiprop=url%7Csize%7Cmime%7Cextmetadata&iiurlwidth=${w}&iiextmetadatafilter=Artist%7CLicenseShortName%7CImageDescription%7CCategories`, { timeout: 14000 });
     return Object.values((d.query && d.query.pages) || {});
   }
-  async function fetchPhotos(lm) {
+  // Night and sunset photos are told apart by their title, description and categories.
+  const NIGHT = /(\bnight|nighttime|night-time|nocturn|illuminat|\blit up|blue hour|\bnacht|\bnoche|\bnuit\b|\bnotte\b|\bnoite\b|夜)/i;
+  const DUSK = /(sunset|sunrise|\bdusk\b|\bdawn\b|golden hour|twilight|sundown|coucher du soleil|puesta del sol|tramonto|夕)/i;
+  const about = p => { const im = p.imageinfo && p.imageinfo[0], em = (im && im.extmetadata) || {}; return [p.title, em.ImageDescription && em.ImageDescription.value, em.Categories && em.Categories.value].filter(Boolean).join(' ').replace(/<[^>]+>/g, ' '); };
+  async function fetchPhotos(lm, phase = 'day') {
     const big = Math.max(innerWidth, innerHeight) * Math.min(devicePixelRatio || 1, 2) > 2200, w = big ? 2560 : 1920;
     const term = lm.q || `"${lm.name}"`, sr = innerWidth / innerHeight;
+    const word = phase === 'night' ? ' night' : phase === 'dusk' ? ' sunset' : '';
+    const fits = p => { const t = about(p); return phase === 'night' ? NIGHT.test(t) : phase === 'dusk' ? DUSK.test(t) && !NIGHT.test(p.title) : !NIGHT.test(t) && !DUSK.test(p.title); };
     let pages = [];
-    try { pages = await search(`${term} incategory:"Quality images" filetype:bitmap`, w); } catch (e) { /* fall through to the plain search */ }
-    const good = p => { const im = p.imageinfo && p.imageinfo[0]; if (!im || !im.thumburl || !/jpe?g/.test(im.mime || '')) return false; const ar = im.width / im.height; return im.width >= 1400 && ar > 0.45 && ar < 2.7 && !JUNK.test(p.title); };
+    try { pages = await search(`${term}${word} incategory:"Quality images" filetype:bitmap`, w); } catch (e) { /* fall through to the plain search */ }
+    const good = p => { const im = p.imageinfo && p.imageinfo[0]; if (!im || !im.thumburl || !/jpe?g/.test(im.mime || '')) return false; const ar = im.width / im.height; return im.width >= 1400 && ar > 0.45 && ar < 2.7 && !JUNK.test(p.title) && fits(p); };
     let ok = pages.filter(good);
-    if (ok.length < 4) { const more = await search(`${term} filetype:bitmap filew:>1800`, w); const have = new Set(ok.map(p => p.pageid)); ok = ok.concat(more.filter(p => good(p) && !have.has(p.pageid))); }
+    if (ok.length < 4) { const more = await search(`${term}${word} filetype:bitmap filew:>1800`, w); const have = new Set(ok.map(p => p.pageid)); ok = ok.concat(more.filter(p => good(p) && !have.has(p.pageid))); }
+    if (phase !== 'day' && ok.length < 2) return [];          // not enough night (or sunset) pictures: the daytime ones stand in
     // best search hits first, nudged toward pictures shaped like this screen
     ok.sort((a, b) => { const f = p => (p.index || 30) + Math.abs(Math.log((p.imageinfo[0].width / p.imageinfo[0].height) / sr)) * 7; return f(a) - f(b); });
     const list = ok.slice(0, 12).map(p => {
       const im = p.imageinfo[0], em = im.extmetadata || {}, v = k => U.text(em[k] && em[k].value);
       return { key: 'wm' + p.pageid, urls: [im.thumburl, im.size < 12e6 ? im.url : null].filter(Boolean), by: U.truncate(v('Artist'), 80), lic: v('LicenseShortName') || 'See file page', link: im.descriptionurl };
     });
-    if (lm.lead) list.push({ key: 'lead', urls: [lm.lead], by: '', lic: 'See the Wikipedia page', link: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(lm.wiki || lm.name) });
+    if (lm.lead && phase === 'day') list.push({ key: 'lead', urls: [lm.lead], by: '', lic: 'See the Wikipedia page', link: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(lm.wiki || lm.name) });
     return list;
   }
-  function photos(lm) {
-    let c = LM.photos[lm.id];
+  function photos(lm, phase = 'day') {
+    const key = phase === 'day' ? lm.id : lm.id + '|' + phase;
+    let c = LM.photos[key];
     if (!c) {
-      const s = store[lm.id];
-      c = LM.photos[lm.id] = s && Date.now() - s.at < 5 * 864e5 && s.list.length ? { list: s.list, i: U.randInt(0, s.list.length - 1) } : { list: null, i: 0 };
+      const s = store[key];
+      c = LM.photos[key] = s && Date.now() - s.at < 5 * 864e5 && (s.list.length || s.none) ? { list: s.list.length ? s.list : null, i: U.randInt(0, Math.max(0, s.list.length - 1)), none: s.none, failedAt: s.none ? s.at : 0 } : { list: null, i: 0 };
     }
+    if (c.none) return c;
     if (!c.list && !c.loading && !(c.failedAt && Date.now() - c.failedAt < 120000)) {
       c.loading = true;
-      fetchPhotos(lm).then(list => {
+      fetchPhotos(lm, phase).then(list => {
         c.loading = false;
-        if (!list.length) { c.failedAt = Date.now(); c.empty = true; return; }
+        if (!list.length) {
+          c.failedAt = Date.now(); c.empty = true;
+          if (phase !== 'day') { c.none = true; store[key] = { at: Date.now(), list: [], none: true }; U.store.set('lmPhotos', store); }   // remember: no night shots of this one
+          return;
+        }
         c.list = U.shuffle(list.slice(0, 5)).concat(list.slice(5)); c.i = 0;
-        store[lm.id] = { at: Date.now(), list };
-        const ks = Object.keys(store); if (ks.length > 70) ks.sort((a, b) => store[a].at - store[b].at).slice(0, ks.length - 70).forEach(k => delete store[k]);
+        store[key] = { at: Date.now(), list };
+        const ks = Object.keys(store); if (ks.length > 120) ks.sort((a, b) => store[a].at - store[b].at).slice(0, ks.length - 120).forEach(k => delete store[k]);
         U.store.set('lmPhotos', store);
         SS.emit('landmarks');
       }, () => { c.loading = false; c.failedAt = Date.now(); });
     }
     return c;
   }
-  const toItem = (lm, ph) => ({ key: `lm:${lm.id}:${ph.key}`, src: 'landmarks', kind: 'photo', fill: true, urls: ph.urls, title: lm.name, creator: ph.by, detail: LM.placeLine(lm), license: ph.lic, link: ph.link, lm });
-  // Snow globe look: the same landmark inside a glass dome. The Golden Gate Bridge is a model drawn in code (no photo needed).
-  const MODELS = { 'golden-gate-bridge-us': 'gg' };
+  // What time of day it is at the landmark: 'day', 'dusk' (about 45 minutes either side of sunrise or sunset) or 'night'.
+  LM.phase = function (lm) {
+    if (!lm || W().dayNight === false) return 'day';
+    const w = LM.wxNow(lm), m = iso => +iso.slice(11, 13) * 60 + +iso.slice(14, 16);
+    let now, rise = 390, set = 1080;
+    if (w && w.sunrise && w.sunset && w.off != null) { const d = new Date(Date.now() + w.off * 1000); now = d.getUTCHours() * 60 + d.getUTCMinutes(); rise = m(w.sunrise); set = m(w.sunset); }
+    else { const d = new Date(); now = ((d.getUTCHours() * 60 + d.getUTCMinutes() + lm.lon * 4) % 1440 + 1440) % 1440; }   // no weather yet: sun time from the longitude
+    if (Math.abs(now - rise) < 45 || Math.abs(now - set) < 45) return 'dusk';
+    return now > rise && now < set ? 'day' : 'night';
+  };
+  // The photos for the time of day there: night shots at night, sunsets at sunset, daytime ones otherwise (or while those load).
+  function photosNow(lm) {
+    const ph = LM.phase(lm), day = photos(lm, 'day');
+    if (ph === 'day') return { c: day, matched: false };
+    const c = photos(lm, ph);
+    if (c.list && c.list.length) return { c, matched: ph };
+    return { c: day, matched: false };
+  }
+  const toItem = (lm, ph, phase) => ({ key: `lm:${lm.id}:${ph.key}`, src: 'landmarks', kind: 'photo', fill: true, urls: ph.urls, title: lm.name, creator: ph.by, detail: LM.placeLine(lm), license: ph.lic, link: ph.link, lm, timeMatched: phase || '' });
+  // Snow globe look: the same landmark inside a glass dome. The Golden Gate Bridge is drawn in code, two ways that take turns:
+  // straight on ('gg') and the 3D model ('gg3d'). Settings → Weather & landmarks picks one or both.
+  const MODELS = { 'golden-gate-bridge-us': ['gg', 'gg3d'] };
+  let ggTurn = 1;
   const isGlobe = () => W().screen && W().look === 'globe';
-  const modelFor = lm => (W().models !== false && MODELS[lm.id]) || '';
-  const toGlobe = (lm, ph) => (ph ? Object.assign(toItem(lm, ph), { globe: true, kind: 'art' })
-    : { key: `lm:${lm.id}:model`, src: 'landmarks', kind: 'art', globe: true, model: modelFor(lm), title: lm.name, creator: '', detail: LM.placeLine(lm), license: 'Drawn in code by this app', link: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(lm.name), lm });
+  const modelFor = lm => !!(W().models !== false && MODELS[lm.id]);
+  const pickModel = lm => { const m = MODELS[lm.id], v = W().ggView || 'both'; return v === 'front' ? m[0] : v === '3d' ? m[1] : m[ggTurn++ % 2]; };
+  const toGlobe = (lm, ph, phase) => (ph ? Object.assign(toItem(lm, ph, phase), { globe: true, kind: 'art' })
+    : { key: `lm:${lm.id}:model`, src: 'landmarks', kind: 'art', globe: true, model: pickModel(lm), title: lm.name, creator: '', detail: LM.placeLine(lm), license: 'Drawn in code by this app', link: 'https://en.wikipedia.org/wiki/' + encodeURIComponent(lm.name), lm });
   LM.sampleGlobe = () => toGlobe(LM.byId('golden-gate-bridge-us'), null);
-  LM.drop = item => { const c = item && item.lm && LM.photos[item.lm.id]; if (c && c.list) c.list = c.list.filter(p => `lm:${item.lm.id}:${p.key}` !== item.key); };
+  LM.drop = item => { if (!item || !item.lm) return; ['', '|night', '|dusk'].forEach(sfx => { const c = LM.photos[item.lm.id + sfx]; if (c && c.list) c.list = c.list.filter(p => `lm:${item.lm.id}:${p.key}` !== item.key); }); };
 
   // The weather screen's next picture. null = still loading; undefined = can't (let the normal mix carry on).
   LM.take = function () {
@@ -685,13 +719,13 @@ Bora Bora;-16.5004;-151.7415;"Bora Bora" lagoon
         order.slice(k + 1, k + 3).forEach(n => { if (!modelFor(n)) photos(n); LM.weather(n); });
         return toGlobe(lm, null);
       }
-      const c = photos(lm);
+      const { c, matched } = photosNow(lm);
       if (c.list && c.list.length) {
         if (lm === LM.jump) LM.jump = null;
         else if (!pin) LM.pos += rot.indexOf(lm) + 1;
         const ph = c.list[c.i++ % c.list.length];
-        order.slice(k + 1, k + 3).forEach(n => { photos(n); LM.weather(n); });
-        return globe ? toGlobe(lm, ph) : toItem(lm, ph);
+        order.slice(k + 1, k + 3).forEach(n => { photosNow(n); LM.weather(n); });
+        return globe ? toGlobe(lm, ph, matched) : toItem(lm, ph, matched);
       }
       if (k === 0 && lm === LM.jump && c.loading) return null;   // you asked for this one: wait for it
     }
@@ -704,12 +738,47 @@ Bora Bora;-16.5004;-151.7415;"Bora Bora" lagoon
     await LM.resolve();
     const picks = U.shuffle(LM.list.slice(0, 40)).slice(0, 3), out = [];
     for (const lm of picks) {
-      const c = photos(lm);
+      let { c, matched } = photosNow(lm);
       for (let i = 0; i < 60 && c.loading; i++) await U.sleep(200);
-      if (c.list && c.list.length) out.push(toItem(lm, c.list[c.i++ % c.list.length]));
+      if (!(c.list && c.list.length)) { c = photos(lm, 'day'); matched = false; for (let i = 0; i < 60 && c.loading; i++) await U.sleep(200); }
+      if (c.list && c.list.length) out.push(toItem(lm, c.list[c.i++ % c.list.length], matched));
     }
     return out;
   };
+
+  /* ── Lore: the story of each landmark, from Wikipedia's summary of it (CC BY-SA 4.0), kept for a month ── */
+  const loreStore = U.store.get('lmLore', {}), loreBusy = {};
+  const wikiTitle = lm => lm.wiki || ((lm.q || '').match(/"([^"]+)"/) || [])[1] || lm.name;
+  async function fetchLore(lm) {
+    const sum = async t => { const d = await U.fetchJSON(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(t.replace(/ /g, '_'))}`, { timeout: 10000 }); return d && d.type !== 'disambiguation' && d.extract && d.extract.length > 60 ? d : null; };
+    let d = null;
+    try { d = await sum(wikiTitle(lm)); } catch (e) { /* try a search instead */ }
+    if (!d) {
+      const s = await U.fetchJSON(`https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&list=search&srlimit=1&srsearch=${encodeURIComponent(lm.name + ' ' + (lm.city || ''))}`, { timeout: 10000 });
+      const hit = s.query && s.query.search && s.query.search[0];
+      if (hit) { try { d = await sum(hit.title); } catch (e) { /* none */ } }
+    }
+    if (!d) return null;
+    return { text: d.extract, title: d.title, url: (d.content_urls && d.content_urls.desktop && d.content_urls.desktop.page) || 'https://en.wikipedia.org/wiki/' + encodeURIComponent(d.title) };
+  }
+  // The story if it's here; otherwise starts fetching it (an 'lmlore' event follows) and returns null.
+  LM.lore = function (lm) {
+    if (!lm || W().lore === false) return null;
+    const c = loreStore[lm.id];
+    if (c && Date.now() - c.at < 30 * 864e5) return c.text ? c : null;
+    if (!loreBusy[lm.id] && !SS.env.cspBlocked) {
+      loreBusy[lm.id] = true;
+      fetchLore(lm).then(r => {
+        loreStore[lm.id] = Object.assign({ at: Date.now() }, r || { text: '' });
+        const ks = Object.keys(loreStore); if (ks.length > 150) ks.sort((a, b) => loreStore[a].at - loreStore[b].at).slice(0, ks.length - 150).forEach(k => delete loreStore[k]);
+        U.store.set('lmLore', loreStore);
+        SS.emit('lmlore', { id: lm.id });
+      }, () => {}).then(() => { loreBusy[lm.id] = false; });
+    }
+    return null;
+  };
+  // The first sentence or two, for the screen.
+  LM.loreShort = (text, max = 230) => { const s = String(text || '').split(/(?<=[.!?])\s+(?=[A-Z0-9"“(])/); let out = s[0] || ''; for (let i = 1; i < s.length && (out + ' ' + s[i]).length <= max; i++) out += ' ' + s[i]; return out.length > max + 60 ? U.truncate(out, max) : out; };
 
   /* ── Weather at a spot (Open-Meteo). Always asked for in metric, shown in your units. ── */
   const wkey = (lat, lon) => (+lat).toFixed(2) + ',' + (+lon).toFixed(2);

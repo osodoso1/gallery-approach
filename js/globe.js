@@ -1,6 +1,7 @@
 /* Snow globe: the landmark sits inside a glass dome on a black table, and the live weather happens inside the glass.
    Night there → dark sky, moon, the bridge lit up. Day → blue sky and sun. Around sunrise and sunset the sky warms.
-   The Golden Gate Bridge is a glowing model drawn in code; every other landmark is its photo, set inside the dome.
+   The Golden Gate Bridge is drawn in code, two ways: straight on (a glowing model) and in 3D (js/gg3d.js), taking turns;
+   every other landmark is its photo, set inside the dome. The room around the globe is daylit, warm at dusk, or dark at night.
    (After Karen X. Cheng's weather snow globe.) */
 (function () {
   'use strict';
@@ -13,7 +14,7 @@
   GL.layout = function (W, H) {
     const land = W > H * 1.05;
     const R = land ? Math.min(H * 0.40, W * 0.25) : Math.min(W * 0.46, H * 0.25);
-    return land ? { cx: W * 0.645, y0: H * 0.70, R } : { cx: W / 2, y0: H * 0.47, R };
+    return land ? { cx: W * 0.645, y0: H * 0.70, R } : { cx: W / 2, y0: H * 0.43, R };
   };
 
   // What the sky inside the globe should be doing right now.
@@ -111,7 +112,7 @@
     const drops = Array.from({ length: 260 }, () => ({ x: rnd(), y: rnd(), z: 0.5 + rnd() * 0.5 }));
     const flakes = Array.from({ length: 220 }, () => ({ x: rnd(), y: rnd(), z: 0.3 + rnd() * 0.7, p: rnd() * 6.3 }));
     const stars = Array.from({ length: 60 }, () => ({ x: rnd(), y: rnd() * 0.75, p: rnd() * 6.3, s: 0.5 + rnd() }));
-    const model = item.model === 'gg';
+    const model = item.model || '';     // 'gg' straight on, 'gg3d' the 3D bridge, '' a photo
 
     function dome(L, ry, rb) { g.beginPath(); g.ellipse(L.cx, L.y0, L.R, ry, 0, Math.PI, 2 * Math.PI); g.ellipse(L.cx, L.y0, L.R, rb, 0, 0, Math.PI); g.closePath(); }
     // the photo, cut to fill the dome (made once per size)
@@ -135,10 +136,22 @@
       const spr = SS.wxfx.sprites(), wx = -Math.sin(s.dir * Math.PI / 180), S = ({ 1: 0.7, 2: 1, 3: 1.3 }[(SS.settings.wx || {}).strength] || 1);
       const heavy = Math.max(s.rain, s.storm, s.snow * 0.7);
 
-      // the room: black, with the faintest pool of light on the table
-      g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+      // the room around the globe follows the time there: soft window daylight by day, warm at sunset, dark at night
+      const dark = U.clamp(s.night, 0, 1), dz = s.dusk * (1 - dark);
+      const wallTop = mix(mix([66, 78, 94], [86, 60, 58], dz), [0, 0, 0], dark), wallBot = mix(mix([30, 35, 44], [40, 28, 30], dz), [0, 0, 0], dark);
+      const tableC = mix(mix([38, 34, 33], [44, 30, 26], dz), [0, 0, 0], dark), tableY = y0 + rb * 0.4;
+      const wall = g.createLinearGradient(0, 0, 0, tableY); wall.addColorStop(0, rgb(wallTop)); wall.addColorStop(1, rgb(wallBot));
+      g.fillStyle = wall; g.fillRect(0, 0, W, tableY);
+      const tbl = g.createLinearGradient(0, tableY, 0, H); tbl.addColorStop(0, rgb(mix(tableC, [90, 84, 80], 0.25 * (1 - dark)))); tbl.addColorStop(1, rgb(mix(tableC, [0, 0, 0], 0.5)));
+      g.fillStyle = tbl; g.fillRect(0, tableY, W, H - tableY);
+      if (dark < 0.97) {
+        const wl = g.createRadialGradient(W * 0.95, -H * 0.05, 0, W * 0.95, -H * 0.05, Math.max(W, H) * 0.85);
+        wl.addColorStop(0, dz > 0.3 ? `rgba(255,186,130,${0.22 * (1 - dark)})` : `rgba(226,236,255,${0.18 * (1 - dark)})`); wl.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = wl; g.fillRect(0, 0, W, H);
+        g.fillStyle = `rgba(0,0,0,${0.35 * (1 - dark)})`; g.beginPath(); g.ellipse(cx - R * 0.12, y0 + rb * 1.3, R * 1.15, rb * 1.5, 0, 0, 6.3); g.fill();   // the globe's shadow
+      }
       const tb = g.createRadialGradient(cx, y0 + rb, R * 0.2, cx, y0 + rb, R * 2.1);
-      tb.addColorStop(0, `rgba(${s.night > 0.5 ? '40,34,44' : '54,60,72'},.5)`); tb.addColorStop(1, 'rgba(0,0,0,0)');
+      tb.addColorStop(0, `rgba(${dark > 0.5 ? '40,34,44' : '54,60,72'},${0.5 * dark})`); tb.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = tb; g.fillRect(0, y0 - R * 0.2, W, H);
 
       // ── inside the glass ──
@@ -153,8 +166,9 @@
         g.drawImage(p, cx - R, y0 - ry);
         // light the photo for the hour: blue and dim at night, warm at dusk, flat under cloud
         g.globalCompositeOperation = 'multiply';
-        if (s.night > 0.01) { g.globalAlpha = s.night * 0.86; g.fillStyle = 'rgb(34,46,104)'; g.fillRect(cx - R, y0 - ry, R * 2, ry + rb + 2); }
-        if (s.dusk > 0.01) { g.globalAlpha = s.dusk * 0.55; g.fillStyle = 'rgb(255,170,120)'; g.fillRect(cx - R, y0 - ry, R * 2, ry + rb + 2); }
+        const tk = item.timeMatched ? 0.25 : 1;   // a real night or sunset photo needs little help
+        if (s.night > 0.01) { g.globalAlpha = s.night * 0.86 * tk; g.fillStyle = 'rgb(34,46,104)'; g.fillRect(cx - R, y0 - ry, R * 2, ry + rb + 2); }
+        if (s.dusk > 0.01) { g.globalAlpha = s.dusk * 0.55 * tk; g.fillStyle = 'rgb(255,170,120)'; g.fillRect(cx - R, y0 - ry, R * 2, ry + rb + 2); }
         g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
         if (grey > 0.02) { g.fillStyle = rgb(gcol, grey * 0.34); g.fillRect(cx - R, y0 - ry, R * 2, ry + rb + 2); }
       }
@@ -178,7 +192,10 @@
         band(spr.puffs[1], cx, y0 - ry * 0.68, R * 3, ry * 0.36, sp * 1.9, s.cloud * 0.5 * (1 - dk * 0.6));
       }
       const fogA = s.fog * S * (1 - s.night * 0.5), fsp = t * (5 + s.wind * 0.6) * k * (wx >= 0 ? 1 : -1);
-      if (model) {
+      if (model === 'gg3d') {
+        SS.gg3d.draw(g, { cx, yh: y0 - R * 0.07, R, t, s, sky: mix(top, bot, 0.85),
+          fogMid: hz => band(spr.puffs[2], cx, hz + R * 0.06, R * 2.6, R * 0.42, fsp * 0.7, fogA * 0.75) });
+      } else if (model) {
         const sky = mix(top, bot, 0.8), yh = ggScene(g, cx, y0, R, ry, rb, s, t, sky, false);
         band(spr.puffs[2], cx, yh - R * 0.3, R * 2.6, R * 0.5, fsp * 0.7, fogA * 0.7);      // fog behind the towers…
         ggScene(g, cx, y0, R, ry, rb, s, t, sky, true);
@@ -233,7 +250,7 @@
       g.globalAlpha = 0.14; g.translate(0, 2 * (y0 + rb * 1.5)); g.scale(1, -1);
       g.drawImage(c, cx - R, y0 - ry * 0.5, R * 2, ry * 0.5 + rb, cx - R, y0 - ry * 0.5, R * 2, ry * 0.5 + rb);
       g.restore();
-      const fade = g.createLinearGradient(0, y0 + rb * 1.6, 0, y0 + rb * 2 + ry * 0.5); fade.addColorStop(0, 'rgba(0,0,0,.25)'); fade.addColorStop(1, '#000');
+      const fade = g.createLinearGradient(0, y0 + rb * 1.6, 0, y0 + rb * 2 + ry * 0.5); fade.addColorStop(0, rgb(tableC, 0.25)); fade.addColorStop(1, rgb(mix(tableC, [0, 0, 0], 0.3)));
       g.fillStyle = fade; g.fillRect(cx - R * 1.2, y0 + rb * 1.6, R * 2.4, ry * 0.6 + rb);
       g.lineWidth = Math.max(1, 2 * k); g.strokeStyle = 'rgba(255,255,255,.2)';
       g.beginPath(); g.ellipse(cx, y0, R, ry, 0, Math.PI, 2 * Math.PI); g.stroke();

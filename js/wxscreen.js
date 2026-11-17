@@ -43,8 +43,10 @@
     if (it.lm) {
       const data = LM().wxNow(it.lm);
       LM().weather(it.lm);
-      const sc = w.fxLm !== false && data ? LM().scene(data) : null;
-      FX().set(sc && w.dayNight === false ? Object.assign({}, sc, { night: 0 }) : sc);
+      let sc = w.fxLm !== false && data ? LM().scene(data) : null;
+      // a real night (or sunset) photo is dark already, so the night tint backs off
+      if (sc && (w.dayNight === false || it.timeMatched)) sc = Object.assign({}, sc, { night: w.dayNight === false || it.timeMatched === 'dusk' ? 0 : sc.night * 0.25 });
+      FX().set(sc);
       return;
     }
     if (WS.isOn() && WS.sample) { FX().set(w.fxLm !== false ? WS.sample : null); return; }   // sample weather (nothing live can load)
@@ -113,6 +115,8 @@
     if (it && it.lm) {
       const lm = it.lm, w = L.wxNow(lm);
       main.append(h('h1', { class: 'ws-name' }, lm.name), h('div', { class: 'ws-sub' }, L.placeLine(lm)));
+      const lore = L.lore(lm);
+      if (lore) main.append(h('p', { class: 'ws-lore' }, L.loreShort(lore.text), ' ', h('button', { class: 'ws-more', onclick: e => { e.stopPropagation(); SS.ui.info.open(it); } }, 'Story ›')));
       if (w) {
         const there = timeThere(w);
         main.append(
@@ -154,6 +158,7 @@
       WS.applyFx(); render();
     });
     SS.on('lmweather', () => { WS.applyFx(); if (WS.isOn()) render(); });
+    SS.on('lmlore', ({ id }) => { const it = curItem(); if (WS.isOn() && it && it.lm && it.lm.id === id) render(); });
     SS.on('landmarks', () => { if (WS.isOn()) { render(); const it = curItem(); if (it && !it.lm && !SS.show.busy && SS.landmarks.list.length && !SS.env.cspBlocked) { SS.show.nextP = null; } } });
     SS.on('wxfx-idle', () => WS.applyFx());
     SS.on('settings', p => {

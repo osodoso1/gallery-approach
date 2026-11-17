@@ -148,6 +148,11 @@
       h('div', { class: 'fc-body' },
         h('div', { class: 'cap-src' }, h('span', { class: 'cap-dot', style: { '--c': p.color || '#fff' } }), 'About this picture'),
         h('div', { class: 'ic-title' }, U.text(item.title) || 'Untitled'),
+        (() => {   // the story behind it: a landmark's from Wikipedia, a creature's from its field guide entry
+          const lore = item.lore || (item.lm && SS.landmarks && SS.landmarks.lore(item.lm));
+          if (!lore || !lore.text) return '';
+          return h('div', { class: 'ic-lore' }, h('p', null, lore.text), lore.url ? h('small', null, link(lore.url, lore.credit || 'From Wikipedia ↗'), lore.credit ? '' : ' · CC BY-SA 4.0') : lore.credit ? h('small', null, lore.credit) : '');
+        })(),
         gen ? h('p', { class: 'ic-note' }, `Generative art: this app drew it itself, with code, right on this screen. It isn't a photo of anything and it isn't AI-made. It stays at most ${Math.round((SS.settings.genSeconds || 120) / 60)} min.`) : '',
         gen ? h('div', { style: { margin: '0 0 10px' } }, h('button', { class: 'btn small', onclick: e => { e.stopPropagation(); SS.setSetting('weights.generative', -1); info.close(); SS.pool.genChanged(); U.toast('Generative art is off. Turn it back on in Settings → Slideshow.'); } }, 'Don\'t show generative art')) : '',
         item.kind === 'motion' ? h('p', { class: 'ic-note' }, 'A video, playing muted on a loop. It stays up to 2 minutes.') : '',
