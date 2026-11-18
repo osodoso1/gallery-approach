@@ -125,7 +125,8 @@ Google Arts & Culture has no public API, so it can't be included automatically. 
 
 Settings → **X posts**: paste X profile links, post links or @names (several at once is fine). Accounts you follow and posts you save become a genre in the Genres menu, with a checkbox for each account. Each slide is X's own embed (a post, or an account's latest posts) on a card, so nothing is downloaded or copied, and the card's **Follow on X** button opens X so you can follow the account there.
 
-- Videos in X embeds start when you tap them.
+- Videos in X embeds start when you tap them (X's embeds can't be started by the page). When you tap into a post, the slideshow pauses on it until you tap outside it.
+- **Open on X** opens the post in the X app or site, where X's own share menu can save a video (for X subscribers, when the poster allows downloads).
 - Only public accounts can be shown, and a post that's been deleted is skipped.
 - The X script loads only when there's something to show. Pages that block outside content (like a page opened inside claude.ai) can't show X embeds.
 

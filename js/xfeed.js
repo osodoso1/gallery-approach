@@ -63,9 +63,12 @@
   async function card(item) {
     const tw = await XF.widgets();
     const box = h('div', { class: 'xcard' + (item.x.post ? ' post' : ' feed') });
+    const url = item.x.post ? XF.postUrl(item.x.post) : XF.profileUrl(item.x.account);
     const head = h('div', { class: 'xcard-head' },
-      h('a', { href: item.x.post ? XF.postUrl(item.x.post) : XF.profileUrl(item.x.account), target: '_blank', rel: 'noopener' }, item.x.post ? `Post by @${item.x.post.user}` : `@${item.x.account} on X`),
-      h('a', { class: 'xcard-follow', href: XF.followUrl(item.x.post ? item.x.post.user : item.x.account), target: '_blank', rel: 'noopener', title: 'Opens X so you can follow this account' }, 'Follow on X'));
+      h('a', { class: 'xcard-who', href: url, target: '_blank', rel: 'noopener' }, item.x.post ? `Post by @${item.x.post.user}` : `@${item.x.account} on X`),
+      // Open on X: on a phone this opens the X app, where X's own menu can save the video (if X allows it for you and the poster)
+      h('a', { class: 'xcard-open', href: url, target: '_blank', rel: 'noopener', title: 'Open this on X, where you can save videos with X’s own menu' }, 'Open on X'),
+      h('a', { class: 'xcard-follow', href: XF.followUrl(item.x.post ? item.x.post.user : item.x.account), target: '_blank', rel: 'noopener', title: 'Opens X so you can follow this account' }, 'Follow'));
     const body = h('div', { class: 'xcard-body' });
     box.append(head, body);
     const wrap = h('div', { class: 'slide-dom' }, box);
@@ -139,12 +142,26 @@
       h('div', { class: 'xf-add' }, inp, h('button', { class: 'btn', onclick: add }, 'Add')),
       h('h3', null, `Accounts you follow (${c.accounts.length})`), accs,
       h('h3', null, `Saved posts (${c.posts.length})`), posts,
-      h('p', { class: 'note' }, 'Good to know: videos in X embeds start when you tap them. Only public accounts can be shown. "Follow on X" opens X, where you confirm the follow on your own account. ' +
+      h('p', { class: 'note' }, 'Good to know: videos in X embeds start when you tap them, and the slideshow pauses on that post while you watch. “Open on X” opens the post in the X app, where X’s own share menu can save the video if X allows it for you and the poster. Only public accounts can be shown. “Follow” opens X, where you confirm the follow on your own account. ' +
         (XF.blocked || window.claude ? 'This page can’t load X’s embeds (Claude pages block outside content), so open your GitHub site to see them.' : '')));
   }
 
+  /* ── Watching: when you tap into an X post (to play a video, say), the slideshow waits for you ── */
+  let held = false;
+  function watching() {
+    const a = document.activeElement;
+    if (!a || a.tagName !== 'IFRAME' || !a.closest('.slide-dom.on') || held || !SS.show.playing) return;
+    held = true; SS.show.pause();
+    U.toast('Paused here while you watch. Tap anywhere outside the post to carry on.', 5000);
+  }
+  function backOut() { if (!held) return; held = false; if (!SS.show.playing) SS.show.resume(); }
+
   XF.init = function () {
     sync();
+    addEventListener('blur', () => setTimeout(watching, 0));       // focus went into X's frame: you tapped the post
+    addEventListener('focus', backOut);                              // and back out again
+    SS.on('slide', () => { held = false; });
+    if (SS.ui && SS.ui.actions) SS.ui.actions.push(it => (it && it.x ? [{ label: 'Open on X', fn: () => open(it.link, '_blank', 'noopener') }, { label: 'Follow on X', ghost: true, fn: () => open(XF.followUrl(it.x.post ? it.x.post.user : it.x.account), '_blank', 'noopener') }] : []));
     if (SS.settingsUI && SS.settingsUI.addSection) SS.settingsUI.addSection('xfeed', 'X posts', section, 'sources');
     SS.on('settings', p => { if (p === 'cloud' || p === 'xfeed') sync(); });
     // tidy away a prepared card that never made it to the screen

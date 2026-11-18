@@ -689,6 +689,8 @@ body.clock-only #wxScreen * { pointer-events: none !important; }
 .xcard { pointer-events: auto; width: min(560px, 92vw); max-height: 100%; overflow: auto; overscroll-behavior: contain; border-radius: 18px; background: rgba(12,14,20,.74); border: 1px solid var(--hair-2); box-shadow: 0 30px 80px rgba(0,0,0,.55); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
 .xcard-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(12,14,20,.9); font: 600 13px var(--sans); }
 .xcard-head a { color: var(--text); text-decoration: none; }
+.xcard-who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xcard-open { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--hair-2); font-size: 12px; white-space: nowrap; }
 .xcard-follow { padding: 5px 12px; border-radius: 999px; background: #eff3f4; color: #0f1419 !important; font-weight: 700 !important; font-size: 12px; white-space: nowrap; }
 .xcard-body { padding: 0 8px 8px; }
 .xcard-body iframe { margin: 0 auto !important; }
