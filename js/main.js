@@ -10,6 +10,7 @@
   SS.planner.init();
   SS.env2.init();
   SS.wxfx.init(); SS.landmarks.init(); SS.wxscreen.init();   // weather effects, landmarks and the weather screen
+  SS.xfeed.init();                                            // X posts: accounts you follow and posts you save
   if (SS.theme.init) await SS.theme.init();                   // a themed edition's own add-ons
   SS.flights.start();
   await SS.photos.refresh();

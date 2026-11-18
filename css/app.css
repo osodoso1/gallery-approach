@@ -681,3 +681,22 @@ body.clock-only #wxScreen * { pointer-events: none !important; }
 .wx-sneeze-h b { font-size: 14px; color: var(--c, var(--text)); }
 .wx-sneeze-why { margin-top: 5px; font-size: 12.5px; line-height: 1.45; }
 .wx-sneeze .note { margin-top: 6px; }
+
+/* ── X posts: X's embeds on a card over a quiet backdrop ── */
+#domSlides { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.slide-dom { position: absolute; inset: 0; display: grid; place-items: center; padding: calc(var(--safe-t) + 8vh) 4vw calc(var(--safe-b) + var(--strip-h) + 14vh); visibility: hidden; opacity: 0; transition: opacity .7s var(--ease); }
+.slide-dom.on { visibility: visible; opacity: 1; }
+.xcard { pointer-events: auto; width: min(560px, 92vw); max-height: 100%; overflow: auto; overscroll-behavior: contain; border-radius: 18px; background: rgba(12,14,20,.74); border: 1px solid var(--hair-2); box-shadow: 0 30px 80px rgba(0,0,0,.55); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.xcard-head { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(12,14,20,.9); font: 600 13px var(--sans); }
+.xcard-head a { color: var(--text); text-decoration: none; }
+.xcard-follow { padding: 5px 12px; border-radius: 999px; background: #eff3f4; color: #0f1419 !important; font-weight: 700 !important; font-size: 12px; white-space: nowrap; }
+.xcard-body { padding: 0 8px 8px; }
+.xcard-body iframe { margin: 0 auto !important; }
+body.art-only .slide-dom .xcard-head, body.clock-only .slide-dom .xcard-head { display: none; }
+@media (orientation: portrait) { .slide-dom { padding-top: calc(var(--safe-t) + 26vh); padding-bottom: calc(var(--safe-b) + var(--strip-h) + 16vh); } }
+.xf-add { display: flex; gap: 8px; align-items: stretch; margin: 6px 0 14px; }
+.xf-in { flex: 1; min-height: 44px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(12,14,18,.5); color: var(--text); font: 450 13.5px var(--sans); resize: vertical; }
+.xf-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.xf-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(255,255,255,.03); }
+.xf-row a.btn { text-decoration: none; }
+.xf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font: 600 13.5px var(--sans); text-decoration: none; }

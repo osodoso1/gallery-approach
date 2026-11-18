@@ -11,7 +11,7 @@
       const r = C.render(item, loaded, st);
       if (loaded.img) item.shown = { url: loaded.url || '', w: loaded.img.naturalWidth, h: loaded.img.naturalHeight };
       if (loaded.video) item.shown = { url: loaded.url || '', w: loaded.video.videoWidth, h: loaded.video.videoHeight };
-      return { item, canvas: r.canvas, mode: r.mode, loaded, st, live: r.live };
+      return { item, canvas: r.canvas, mode: r.mode, loaded, st, live: r.live, dom: r.dom };
     } finally { if (loaded.revoke) setTimeout(loaded.revoke, 2000); }
   }
 
@@ -31,7 +31,7 @@
     const st = C.stage();
     if (sl.canvas.width === st.pw && sl.canvas.height === st.ph) return;
     if (sl.live) { sl.live.resize(st); sl.st = st; return; }
-    if (!sl.loaded || (!sl.loaded.img && !sl.loaded.gen)) return;
+    if (!sl.loaded || (!sl.loaded.img && !sl.loaded.gen && !sl.loaded.dom)) return;
     const r = C.render(sl.item, sl.loaded, st);
     sl.canvas = r.canvas; sl.mode = r.mode; sl.st = st;
   }
@@ -47,6 +47,7 @@
     sl.kbAnim = sl.canvas.animate([{ transform: C.kbCSS(sl.kb, 0) }, { transform: C.kbCSS(sl.kb, 1) }], { duration: sl.kbDur, easing: 'linear', fill: 'forwards' });
     if (!S.playing) sl.kbAnim.pause();
     if (sl.live && S.playing) sl.live.start();   // living art keeps drawing while it's on screen
+    if (sl.dom) sl.dom.classList.add('on');      // a page element over the picture (an embedded post)
     sl.st = st;
   }
   const kbP = sl => (sl && sl.kbAnim ? U.clamp((sl.kbAnim.currentTime || 0) / sl.kbDur, 0, 1) : 0);
@@ -88,10 +89,11 @@
       SS.ui && SS.ui.caption.hide();
       const from = typeof opts.from === 'function' ? opts.from() : opts.from;
       if (S.cur && S.cur.el) S.cur.el.style.transform = '';      // the transition layer takes over from a dragged picture
+      if (S.cur && S.cur.dom) S.cur.dom.style.transform = '';
       const playing = SS.fx.play(fxId, A, B, st, { host: U.$('#fx'), variant: opts.variant, speed: S.cur ? null : 1.4, from });
       // The transition layer now covers the stage, so the old slide can go.
       const old = S.cur;
-      if (old) { old.kbAnim && old.kbAnim.cancel(); old.el && old.el.remove(); old.live && (old.live.stop(), old.live.dispose && old.live.dispose()); }
+      if (old) { old.kbAnim && old.kbAnim.cancel(); old.el && old.el.remove(); old.dom && old.dom.remove(); old.live && (old.live.stop(), old.live.dispose && old.live.dispose()); }
       const res = await playing;
       mount(nx);
       res.layer.remove();
@@ -127,8 +129,8 @@
 
   /* ── Swipe: drag the picture; let go past the line (or flick) and it goes. Left = next, right = back. ── */
   const easeBack = (el, f) => { if (!el) return; el.style.transform = ''; if (f) el.animate([{ transform: `translateX(${f * 100}%)` }, { transform: 'translateX(0)' }], { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' }); };
-  S.drag = f => { const el = S.cur && S.cur.el; if (el && !S.busy) el.style.transform = `translateX(${f * 100}%)`; };
-  S.snapBack = f => easeBack(S.cur && S.cur.el, f);
+  S.drag = f => { const el = S.cur && S.cur.el; if (el && !S.busy) { el.style.transform = `translateX(${f * 100}%)`; if (S.cur.dom) S.cur.dom.style.transform = el.style.transform; } };
+  S.snapBack = f => { easeBack(S.cur && S.cur.el, f); easeBack(S.cur && S.cur.dom, f); };
   S.swipe = async function (dir, f) {
     const el = S.cur && S.cur.el;
     if (S.busy) { SS.fx.skip(); for (let i = 0; i < 20 && S.busy; i++) await U.sleep(50); }

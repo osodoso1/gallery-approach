@@ -121,6 +121,14 @@ Each source keeps a few pictures lined up (just their details; the image downloa
 
 Google Arts & Culture has no public API, so it can't be included automatically. Spotlight and Bing use the same public endpoints as [Spotlight-Downloader](https://github.com/ORelio/Spotlight-Downloader) and [SpotlightGallery](https://github.com/Qzincs/SpotlightGallery). The server saves each image to `data/cache/` so your pool grows over time.
 
+## X posts
+
+Settings → **X posts**: paste X profile links, post links or @names (several at once is fine). Accounts you follow and posts you save become a genre in the Genres menu, with a checkbox for each account. Each slide is X's own embed (a post, or an account's latest posts) on a card, so nothing is downloaded or copied, and the card's **Follow on X** button opens X so you can follow the account there.
+
+- Videos in X embeds start when you tap them.
+- Only public accounts can be shown, and a post that's been deleted is skipped.
+- The X script loads only when there's something to show. Pages that block outside content (like a page opened inside claude.ai) can't show X embeds.
+
 ## Flights
 
 - Positions: free community ADS-B feeds (adsb.lol, airplanes.live, adsb.fi), checked every 10 s, with automatic failover.

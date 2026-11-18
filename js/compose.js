@@ -34,6 +34,7 @@
 
   C.load = async function (item) {
     if (item.gen) return { gen: true };
+    if (item.dom) return { dom: await item.dom() };   // a slide that's a page element (e.g. an embedded post), laid out ahead of time
     if (item.live) return { live: true };
     if (item.globe && item.model) return { model: true };
     if (item.video) { const video = await SS.live.loadVideo(item.video.urls); return { video, url: video.currentSrc || video.src }; }
@@ -93,6 +94,7 @@
     const g = c.getContext('2d', { alpha: false });
     g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
     if (loaded.gen) { SS.gen.draw(g, st.pw, st.ph, item.gen); return { canvas: c, mode: 'cover' }; }
+    if (loaded.dom) { if (item.backdrop) item.backdrop(g, st.pw, st.ph); else { g.fillStyle = '#0b0d12'; g.fillRect(0, 0, st.pw, st.ph); } return { canvas: c, mode: 'gallery', dom: loaded.dom }; }
     if (item.globe) { const live = SS.globe.create(item, loaded.img || null, st); return { canvas: live.canvas, mode: 'live', live }; }
     if (loaded.live) { const live = SS.live.create(item, st); return { canvas: live.canvas, mode: 'live', live }; }
     if (loaded.video) { const live = SS.live.video(item, loaded.video, st); return { canvas: live.canvas, mode: 'live', live }; }
